@@ -18,6 +18,13 @@ import (
 	"github.com/nagayon-935/conduit/internal/vault"
 )
 
+const (
+	httpReadTimeout  = 30 * time.Second
+	httpIdleTimeout  = 120 * time.Second
+	shutdownTimeout  = 30 * time.Second
+	connLogStoreSize = 200
+)
+
 func main() {
 	// Configure structured logging.
 	logger := slog.New(slog.NewJSONHandler(os.Stdout, &slog.HandlerOptions{Level: slog.LevelInfo}))
@@ -48,7 +55,7 @@ func main() {
 
 	dialer := sshconn.NewDialer()
 	sessionManager := session.NewManager(cfg)
-	logStore := connlog.NewStore(200)
+	logStore := connlog.NewStore(connLogStoreSize)
 
 	// Step 3: Start session garbage collector.
 	rootCtx, rootCancel := context.WithCancel(context.Background())
@@ -64,9 +71,9 @@ func main() {
 	srv := &http.Server{
 		Addr:         cfg.ServerAddr,
 		Handler:      routes,
-		ReadTimeout:  30 * time.Second,
+		ReadTimeout:  httpReadTimeout,
 		WriteTimeout: 0, // 0 = no timeout on writes (WebSocket connections are long-lived)
-		IdleTimeout:  120 * time.Second,
+		IdleTimeout:  httpIdleTimeout,
 	}
 
 	// Step 5: Serve with graceful shutdown on SIGTERM / SIGINT.
@@ -93,8 +100,8 @@ func main() {
 	// Cancel the root context to stop GC and any background work.
 	rootCancel()
 
-	// Give in-flight requests up to 30 seconds to complete.
-	shutdownCtx, shutdownCancel := context.WithTimeout(context.Background(), 30*time.Second)
+	// Give in-flight requests up to the configured timeout to complete.
+	shutdownCtx, shutdownCancel := context.WithTimeout(context.Background(), shutdownTimeout)
 	defer shutdownCancel()
 
 	if err := srv.Shutdown(shutdownCtx); err != nil {
