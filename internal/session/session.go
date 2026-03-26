@@ -96,9 +96,13 @@ func (s *Session) Close() {
 }
 
 // IsExpired reports whether the session's grace period has elapsed.
+// An actively connected session (StateConnected) is never considered expired.
 func (s *Session) IsExpired() bool {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
+	if s.State == StateConnected {
+		return false
+	}
 	return time.Now().After(s.ExpiresAt)
 }
 

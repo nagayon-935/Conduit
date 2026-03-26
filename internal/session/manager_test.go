@@ -71,7 +71,8 @@ func TestSessionManager_AttachExpiredSession(t *testing.T) {
 
 	m := NewManager(testConfig())
 	sess := newTestSession("tok-expired")
-	// Backdate the expiry so the session is already expired.
+	// Simulate a disconnected session whose grace period has elapsed.
+	sess.State = StateDisconnected
 	sess.ExpiresAt = time.Now().Add(-1 * time.Second)
 	if err := m.Create(sess); err != nil {
 		t.Fatalf("Create: %v", err)
@@ -113,8 +114,10 @@ func TestSessionManager_GC(t *testing.T) {
 	s2 := newTestSession("gc-2")
 	s3 := newTestSession("gc-3")
 
-	// Expire two of them.
+	// Simulate disconnected sessions whose grace period has elapsed.
+	s1.State = StateDisconnected
 	s1.ExpiresAt = time.Now().Add(-1 * time.Second)
+	s2.State = StateDisconnected
 	s2.ExpiresAt = time.Now().Add(-1 * time.Second)
 
 	for _, s := range []*Session{s1, s2, s3} {
@@ -224,13 +227,15 @@ func TestSession_IsExpired_False(t *testing.T) {
 	}
 }
 
-// TestSession_IsExpired_True confirms a backdated session is expired.
+// TestSession_IsExpired_True confirms a disconnected session with a past ExpiresAt is expired.
 func TestSession_IsExpired_True(t *testing.T) {
 	t.Parallel()
 	s := newTestSession("expired")
+	// Must be StateDisconnected; connected sessions are never expired.
+	s.State = StateDisconnected
 	s.ExpiresAt = time.Now().Add(-1 * time.Second)
 	if !s.IsExpired() {
-		t.Error("backdated session should be expired")
+		t.Error("backdated disconnected session should be expired")
 	}
 }
 

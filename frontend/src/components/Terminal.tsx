@@ -13,7 +13,7 @@ interface TerminalProps {
   onDisconnect: () => void;
 }
 
-function formatExpiry(expiresAt: string): string {
+function formatReconnectDeadline(expiresAt: string): string {
   try {
     const date = new Date(expiresAt);
     return date.toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' });
@@ -76,7 +76,9 @@ export function Terminal({ sessionToken, host, port, user, expiresAt, onDisconne
             <span className="status-user">{user}</span>
             <span className="status-sep">•</span>
             <span className="status-expires">
-              Session expires: {formatExpiry(expiresAt)}
+              {isConnected
+                ? 'Grace: 15m'
+                : `Reconnect by: ${formatReconnectDeadline(expiresAt)}`}
             </span>
           </div>
         </div>
