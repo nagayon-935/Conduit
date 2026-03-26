@@ -20,6 +20,7 @@ export type WsControlMessage =
   | { type: 'ping' }
   | { type: 'pong' }
   | { type: 'resize'; cols: number; rows: number }
-  | { type: 'error'; message: string };
+  | { type: 'error'; message: string }
+  | { type: 'exit' };
 
 export type AppState = 'idle' | 'connecting' | 'connected' | 'disconnected' | 'error';

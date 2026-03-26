@@ -52,10 +52,25 @@ func (h *Handler) handleTerminal(w http.ResponseWriter, r *http.Request) {
 	select {
 	case <-ctx.Done():
 	case <-sess.Done():
+		// SSH session ended — notify client so it doesn't attempt reconnection.
+		sendWSExit(sess.GetWebSocket())
 	}
 
 	slog.Info("terminal disconnected", "token", token)
 	sess.DetachWebSocket()
+}
+
+// sendWSExit sends a JSON exit control frame to notify the client the SSH session ended.
+func sendWSExit(ws *websocket.Conn) {
+	if ws == nil {
+		return
+	}
+	type exitMsg struct {
+		Type string `json:"type"`
+	}
+	if err := ws.WriteJSON(exitMsg{Type: "exit"}); err != nil {
+		slog.Warn("sendWSExit: write failed", "error", err)
+	}
 }
 
 // sendWSError sends a JSON error control frame to the WebSocket client.

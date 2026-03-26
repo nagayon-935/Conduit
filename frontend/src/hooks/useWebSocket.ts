@@ -142,6 +142,12 @@ export function useWebSocket(options: UseWebSocketOptions): UseWebSocketReturn {
               case 'error':
                 onErrorRef.current(msg.message);
                 return;
+              case 'exit':
+                // SSH session ended on the server side — close without reconnecting
+                isIntentionalCloseRef.current = true;
+                terminalRef.current?.writeln('\r\n\x1b[90m[Conduit] Session ended.\x1b[0m');
+                ws.close();
+                return;
               case 'resize':
                 // Server-initiated resize — ignore or handle as needed
                 return;
