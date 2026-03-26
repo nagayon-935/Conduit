@@ -1,51 +1,28 @@
-const STORAGE_KEY = 'conduit_session';
+import type { StoredSession } from '../types';
+import { readJSON, writeJSON, removeKey } from './storage';
+import { STORAGE_KEYS } from '../constants';
 
-export interface StoredSession {
-  token: string;
-  expiresAt: string;
-  host: string;
-  port: number;
-  user: string;
-}
-
-/** セッション情報を localStorage に保存する */
+/** Save session info to localStorage */
 export function saveSession(session: StoredSession): void {
-  try {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(session));
-  } catch {
-    // localStorage が使えない環境では無視
-  }
+  writeJSON(STORAGE_KEYS.SESSION, session);
 }
 
 /**
- * localStorage からセッション情報を読み込む。
- * 存在しない・期限切れ・パース失敗の場合は null を返す。
+ * Load session info from localStorage.
+ * Returns null when missing, expired, or unparseable.
  */
 export function loadSession(): StoredSession | null {
-  try {
-    const raw = localStorage.getItem(STORAGE_KEY);
-    if (!raw) return null;
+  const session = readJSON<StoredSession | null>(STORAGE_KEYS.SESSION, null);
+  if (!session) return null;
 
-    const session = JSON.parse(raw) as StoredSession;
-
-    // 期限切れチェック
-    if (new Date(session.expiresAt) <= new Date()) {
-      clearSession();
-      return null;
-    }
-
-    return session;
-  } catch {
+  if (new Date(session.expiresAt) <= new Date()) {
     clearSession();
     return null;
   }
+  return session;
 }
 
-/** localStorage のセッション情報を削除する */
+/** Remove session info from localStorage */
 export function clearSession(): void {
-  try {
-    localStorage.removeItem(STORAGE_KEY);
-  } catch {
-    // ignore
-  }
+  removeKey(STORAGE_KEYS.SESSION);
 }
