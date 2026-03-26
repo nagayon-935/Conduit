@@ -13,6 +13,7 @@ TrustedUserCAKeys /etc/ssh/trusted-ca.pub
 LogLevel INFO
 PrintMotd no
 
-# Keep-alive
-ClientAliveInterval 30
-ClientAliveCountMax 3
+# Keep-alive / 死活監視
+# 60秒ごとにkeepaliveを送信し、10回無応答（= 約10分）で強制切断
+ClientAliveInterval 60
+ClientAliveCountMax 10

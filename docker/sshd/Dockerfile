@@ -12,6 +12,10 @@ RUN apt-get update && \
 # passwd -d でパスワードを空にしてアカウントのロックを解除する
 RUN useradd -m -s /bin/bash conduit && passwd -d conduit
 
+# 無操作タイムアウト: 10分間キー入力なしで bash が自動 exit
+# TMOUT は bash 組み込み変数で、読み取り専用にすることでユーザーが上書きできないようにする
+RUN echo 'readonly TMOUT=600' >> /etc/bash.bashrc
+
 COPY sshd_config /etc/ssh/sshd_config
 COPY entrypoint.sh /entrypoint.sh
 RUN chmod +x /entrypoint.sh
