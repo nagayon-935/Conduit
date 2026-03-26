@@ -1,6 +1,7 @@
-import { useEffect, useCallback } from 'react';
+import { useEffect, useCallback, useRef, useState } from 'react';
 import { useTerminal } from '../hooks/useTerminal';
 import { useWebSocket } from '../hooks/useWebSocket';
+import { themes } from '../themes';
 import '@xterm/xterm/css/xterm.css';
 import './Terminal.css';
 
@@ -23,7 +24,17 @@ function formatReconnectDeadline(expiresAt: string): string {
 }
 
 export function Terminal({ sessionToken, host, port, user, expiresAt, onDisconnect }: TerminalProps) {
-  const { terminalRef, terminal, fitAddon, initTerminal, disposeTerminal } = useTerminal();
+  const {
+    terminalRef,
+    terminal,
+    fitAddon,
+    initTerminal,
+    disposeTerminal,
+    changeFontSize,
+    setTheme,
+    currentThemeKey,
+    search,
+  } = useTerminal();
 
   const handleError = useCallback((msg: string) => {
     console.error('[Conduit] WebSocket error:', msg);
@@ -36,6 +47,14 @@ export function Terminal({ sessionToken, host, port, user, expiresAt, onDisconne
     onDisconnect,
     onError: handleError,
   });
+
+  // Feature ②: Browser tab title
+  useEffect(() => {
+    document.title = `${user}@${host} — Conduit`;
+    return () => {
+      document.title = 'Conduit';
+    };
+  }, [user, host]);
 
   // Init terminal on mount, then connect WebSocket once terminal is ready
   useEffect(() => {
@@ -54,6 +73,84 @@ export function Terminal({ sessionToken, host, port, user, expiresAt, onDisconne
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [terminal]);
 
+  // Feature ③: Font size keyboard shortcut + toast
+  const [fontSizeToast, setFontSizeToast] = useState<number | null>(null);
+  const toastTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  function showFontSizeToast(size: number) {
+    setFontSizeToast(size);
+    if (toastTimerRef.current) clearTimeout(toastTimerRef.current);
+    toastTimerRef.current = setTimeout(() => setFontSizeToast(null), 1500);
+  }
+
+  useEffect(() => {
+    function handleKeyDown(e: KeyboardEvent) {
+      if (e.ctrlKey && (e.key === '=' || e.key === '+')) {
+        e.preventDefault();
+        changeFontSize(1);
+        const current = terminal?.options.fontSize ?? 14;
+        showFontSizeToast(Math.min(32, current + 1));
+      } else if (e.ctrlKey && e.key === '-') {
+        e.preventDefault();
+        changeFontSize(-1);
+        const current = terminal?.options.fontSize ?? 14;
+        showFontSizeToast(Math.max(8, current - 1));
+      }
+    }
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [changeFontSize, terminal]);
+
+  // Feature ⑧: Search overlay
+  const [searchOpen, setSearchOpen] = useState(false);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [searchResultMsg, setSearchResultMsg] = useState('');
+  const searchInputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    function handleKeyDown(e: KeyboardEvent) {
+      if (e.ctrlKey && e.key === 'f') {
+        e.preventDefault();
+        setSearchOpen((prev) => {
+          if (!prev) {
+            setTimeout(() => searchInputRef.current?.focus(), 50);
+          }
+          return !prev;
+        });
+      }
+      if (e.key === 'Escape') {
+        setSearchOpen(false);
+      }
+    }
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, []);
+
+  function handleSearchNext() {
+    if (!searchQuery) return;
+    const found = search(searchQuery, { findNext: true });
+    setSearchResultMsg(found ? '' : 'No results');
+  }
+
+  function handleSearchPrev() {
+    if (!searchQuery) return;
+    const found = search(searchQuery, { findNext: false });
+    setSearchResultMsg(found ? '' : 'No results');
+  }
+
+  function handleSearchKeyDown(e: React.KeyboardEvent<HTMLInputElement>) {
+    if (e.key === 'Enter') {
+      if (e.shiftKey) {
+        handleSearchPrev();
+      } else {
+        handleSearchNext();
+      }
+    }
+    if (e.key === 'Escape') {
+      setSearchOpen(false);
+    }
+  }
+
   function handleDisconnect() {
     disconnect();
     onDisconnect();
@@ -64,36 +161,109 @@ export function Terminal({ sessionToken, host, port, user, expiresAt, onDisconne
       <div className="terminal-status-bar">
         <div className="status-left">
           <div className="status-indicator">
-            <span className="status-dot" aria-hidden="true">●</span>
-            <span className="status-label">{isConnected ? 'Connected' : 'Disconnected'}</span>
+            <span className={`status-dot${isConnected ? '' : ' status-dot--disconnected'}`} aria-hidden="true">●</span>
+            <span className={`status-label${isConnected ? '' : ' status-label--disconnected'}`}>
+              {isConnected ? 'Connected' : 'Disconnected'}
+            </span>
           </div>
 
           <div className="status-divider" />
 
           <div className="status-info">
-            <span className="status-host">{host}:{port}</span>
-            <span className="status-sep">•</span>
-            <span className="status-user">{user}</span>
-            <span className="status-sep">•</span>
-            <span className="status-expires">
-              {isConnected
-                ? 'Grace: 15m'
-                : `Reconnect by: ${formatReconnectDeadline(expiresAt)}`}
+            <span className="status-session">
+              <span className="status-user">{user}</span>
+              <span className="status-at">@</span>
+              <span className="status-host">{host}</span>
+              {port !== 22 && <span className="status-port">:{port}</span>}
             </span>
+            {!isConnected && (
+              <>
+                <span className="status-sep">•</span>
+                <span className="status-expires">
+                  Reconnect by: {formatReconnectDeadline(expiresAt)}
+                </span>
+              </>
+            )}
           </div>
         </div>
 
-        <button
-          type="button"
-          className="disconnect-btn"
-          onClick={handleDisconnect}
-          title="Disconnect from SSH session"
-        >
-          Disconnect
-        </button>
+        <div className="status-right">
+          {/* Feature ⑦: Theme selector */}
+          <select
+            className="theme-select"
+            value={currentThemeKey}
+            onChange={(e) => setTheme(e.target.value)}
+            title="Select terminal theme"
+          >
+            {Object.entries(themes).map(([key, t]) => (
+              <option key={key} value={key}>{t.name}</option>
+            ))}
+          </select>
+
+          <button
+            type="button"
+            className="disconnect-btn"
+            onClick={handleDisconnect}
+            title="Disconnect from SSH session"
+          >
+            Disconnect
+          </button>
+        </div>
       </div>
 
       <div className="terminal-container" ref={terminalRef} />
+
+      {/* Feature ③: Font size toast */}
+      {fontSizeToast !== null && (
+        <div className="font-size-toast">
+          Font size: {fontSizeToast}px
+        </div>
+      )}
+
+      {/* Feature ⑧: Search overlay */}
+      {searchOpen && (
+        <div className="search-overlay">
+          <input
+            ref={searchInputRef}
+            className="search-input"
+            type="text"
+            placeholder="Search..."
+            value={searchQuery}
+            onChange={(e) => {
+              setSearchQuery(e.target.value);
+              setSearchResultMsg('');
+            }}
+            onKeyDown={handleSearchKeyDown}
+          />
+          <button
+            type="button"
+            className="search-btn"
+            onClick={handleSearchPrev}
+            title="Previous match (Shift+Enter)"
+          >
+            ↑
+          </button>
+          <button
+            type="button"
+            className="search-btn"
+            onClick={handleSearchNext}
+            title="Next match (Enter)"
+          >
+            ↓
+          </button>
+          {searchResultMsg && (
+            <span className="search-result-msg">{searchResultMsg}</span>
+          )}
+          <button
+            type="button"
+            className="search-close-btn"
+            onClick={() => setSearchOpen(false)}
+            title="Close search (Escape)"
+          >
+            ✕
+          </button>
+        </div>
+      )}
     </div>
   );
 }

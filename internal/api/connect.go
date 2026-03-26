@@ -6,7 +6,9 @@ import (
 	"log/slog"
 	"net/http"
 	"strings"
+	"time"
 
+	"github.com/nagayon-935/conduit/internal/connlog"
 	"github.com/nagayon-935/conduit/internal/session"
 	"github.com/nagayon-935/conduit/internal/sshconn"
 	pkgtoken "github.com/nagayon-935/conduit/pkg/token"
@@ -92,6 +94,16 @@ func (h *Handler) handleConnect(w http.ResponseWriter, r *http.Request) {
 		apiError(w, http.StatusInternalServerError, "session creation failed", "SESSION_ERROR")
 		return
 	}
+
+	// Step 5: Record connection in the log.
+	logID, _ := pkgtoken.Generate()
+	h.logs.Add(&connlog.Entry{
+		ID:          logID,
+		Host:        req.Host,
+		Port:        req.Port,
+		User:        req.User,
+		ConnectedAt: time.Now(),
+	})
 
 	slog.Info("session created successfully", "token", token, "host", req.Host)
 

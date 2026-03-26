@@ -1,5 +1,5 @@
-import { useState, useEffect } from 'react';
-import { fetchSessions } from '../api/sessions';
+import { useState, useEffect, useCallback } from 'react';
+import { fetchSessions, killSession } from '../api/sessions';
 import type { SessionInfo } from '../types';
 import './SessionList.css';
 
@@ -26,29 +26,48 @@ export function SessionList({ onBack }: SessionListProps) {
   const [sessions, setSessions] = useState<SessionInfo[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
+  const [killingTokens, setKillingTokens] = useState<Set<string>>(new Set());
 
-  useEffect(() => {
-    let cancelled = false;
-
-    async function load() {
-      try {
-        const data = await fetchSessions();
-        if (!cancelled) {
-          setSessions(data);
-          setLastUpdated(new Date());
-          setError(null);
-        }
-      } catch (err) {
-        if (!cancelled) {
-          setError(err instanceof Error ? err.message : 'Failed to load sessions');
-        }
+  const load = useCallback(async (cancelled?: { value: boolean }) => {
+    try {
+      const data = await fetchSessions();
+      if (!cancelled?.value) {
+        setSessions(data);
+        setLastUpdated(new Date());
+        setError(null);
+      }
+    } catch (err) {
+      if (!cancelled?.value) {
+        setError(err instanceof Error ? err.message : 'Failed to load sessions');
       }
     }
-
-    load();
-    const interval = setInterval(load, 5000);
-    return () => { cancelled = true; clearInterval(interval); };
   }, []);
+
+  useEffect(() => {
+    const cancelled = { value: false };
+    load(cancelled);
+    const interval = setInterval(() => load(cancelled), 5000);
+    return () => {
+      cancelled.value = true;
+      clearInterval(interval);
+    };
+  }, [load]);
+
+  async function handleKill(token: string) {
+    setKillingTokens((prev) => new Set(prev).add(token));
+    try {
+      await killSession(token);
+      await load();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to kill session');
+    } finally {
+      setKillingTokens((prev) => {
+        const next = new Set(prev);
+        next.delete(token);
+        return next;
+      });
+    }
+  }
 
   const connected = sessions.filter((s) => s.state === 'connected').length;
   const disconnected = sessions.filter((s) => s.state === 'disconnected').length;
@@ -108,6 +127,7 @@ export function SessionList({ onBack }: SessionListProps) {
                   <th>Tabs</th>
                   <th>Created</th>
                   <th>Expires in</th>
+                  <th>Actions</th>
                 </tr>
               </thead>
               <tbody>
@@ -125,6 +145,18 @@ export function SessionList({ onBack }: SessionListProps) {
                     <td className="muted">{formatTime(s.created_at)}</td>
                     <td className={`expiry ${s.state === 'disconnected' ? 'expiry--warn' : ''}`}>
                       {formatExpiry(s.expires_at)}
+                    </td>
+                    <td>
+                      {s.state !== 'terminated' && (
+                        <button
+                          className="sl-kill-btn"
+                          onClick={() => handleKill(s.token)}
+                          disabled={killingTokens.has(s.token)}
+                          title="Kill this session"
+                        >
+                          {killingTokens.has(s.token) ? '…' : 'Kill'}
+                        </button>
+                      )}
                     </td>
                   </tr>
                 ))}

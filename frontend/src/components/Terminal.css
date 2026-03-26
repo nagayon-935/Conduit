@@ -2,29 +2,30 @@
 .terminal-wrapper {
   display: flex;
   flex-direction: column;
-  height: 100vh;
+  height: 100%;
   background: #1a1b26;
   overflow: hidden;
+  position: relative;
 }
 
 /* Status bar */
 .terminal-status-bar {
   flex-shrink: 0;
-  height: 40px;
+  height: 56px;
   background: #24283b;
-  border-bottom: 1px solid #414868;
+  border-bottom: 2px solid #414868;
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 0 16px;
-  gap: 12px;
+  padding: 0 24px;
+  gap: 16px;
   box-sizing: border-box;
 }
 
 .status-left {
   display: flex;
   align-items: center;
-  gap: 12px;
+  gap: 16px;
   min-width: 0;
   overflow: hidden;
 }
@@ -32,33 +33,42 @@
 .status-indicator {
   display: flex;
   align-items: center;
-  gap: 6px;
+  gap: 8px;
   white-space: nowrap;
 }
 
 .status-dot {
   color: #9ece6a;
-  font-size: 10px;
+  font-size: 13px;
   line-height: 1;
   animation: pulse 2s ease-in-out infinite;
 }
 
+.status-dot--disconnected {
+  color: #f7768e;
+  animation: none;
+}
+
 @keyframes pulse {
   0%, 100% { opacity: 1; }
-  50% { opacity: 0.5; }
+  50% { opacity: 0.4; }
 }
 
 .status-label {
-  font-size: 12px;
-  font-weight: 600;
+  font-size: 13px;
+  font-weight: 700;
   color: #9ece6a;
   text-transform: uppercase;
-  letter-spacing: 0.5px;
+  letter-spacing: 0.8px;
+}
+
+.status-label--disconnected {
+  color: #f7768e;
 }
 
 .status-divider {
   width: 1px;
-  height: 16px;
+  height: 22px;
   background: #414868;
   flex-shrink: 0;
 }
@@ -66,60 +76,117 @@
 .status-info {
   display: flex;
   align-items: center;
-  gap: 8px;
-  font-size: 12px;
+  gap: 10px;
+  font-size: 15px;
   color: #c0caf5;
   font-family: 'Menlo', 'Monaco', 'Courier New', monospace;
   min-width: 0;
   overflow: hidden;
 }
 
-.status-host {
-  color: #7aa2f7;
-  font-weight: 600;
+/* user@host[:port] をひとまとまりで表示 */
+.status-session {
+  display: flex;
+  align-items: baseline;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
 }
 
-.status-sep {
-  color: #414868;
-}
-
 .status-user {
   color: #9ece6a;
-  white-space: nowrap;
+  font-size: 16px;
+  font-weight: 700;
+}
+
+.status-at {
+  color: #565f89;
+  font-size: 15px;
+  margin: 0 1px;
+}
+
+.status-host {
+  color: #7aa2f7;
+  font-weight: 700;
+  font-size: 16px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.status-port {
+  color: #565f89;
+  font-size: 14px;
+  font-weight: 400;
+}
+
+.status-sep {
+  color: #414868;
+  font-size: 13px;
 }
 
 .status-expires {
-  color: #565f89;
-  font-size: 11px;
+  color: #e0af68;
+  font-size: 13px;
   white-space: nowrap;
 }
 
-/* Disconnect button */
+/* Right side of status bar */
+.status-right {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-shrink: 0;
+}
+
+/* Theme selector */
+.theme-select {
+  background: #1a1b26;
+  border: 1px solid #414868;
+  border-radius: 6px;
+  color: #a9b1d6;
+  font-size: 13px;
+  font-weight: 500;
+  padding: 6px 10px;
+  cursor: pointer;
+  outline: none;
+  transition: border-color 0.15s ease, color 0.15s ease;
+  white-space: nowrap;
+}
+
+.theme-select:hover {
+  border-color: #7aa2f7;
+  color: #c0caf5;
+}
+
+.theme-select:focus {
+  border-color: #7aa2f7;
+  color: #c0caf5;
+}
+
+/* Disconnect button — 常に赤、ホバーで塗りつぶし強調 */
 .disconnect-btn {
   flex-shrink: 0;
-  padding: 5px 14px;
+  padding: 7px 18px;
   background: transparent;
-  border: 1px solid #414868;
-  border-radius: 5px;
-  color: #565f89;
-  font-size: 12px;
-  font-weight: 500;
+  border: 1px solid #f7768e;
+  border-radius: 6px;
+  color: #f7768e;
+  font-size: 13px;
+  font-weight: 600;
   cursor: pointer;
-  transition: border-color 0.15s ease, color 0.15s ease, background 0.15s ease;
+  transition: background 0.15s ease, color 0.15s ease, box-shadow 0.15s ease;
   white-space: nowrap;
 }
 
 .disconnect-btn:hover {
-  border-color: #f7768e;
-  color: #f7768e;
-  background: rgba(247, 118, 142, 0.08);
+  background: #f7768e;
+  color: #1a1b26;
+  box-shadow: 0 0 12px rgba(247, 118, 142, 0.45);
 }
 
 .disconnect-btn:active {
-  background: rgba(247, 118, 142, 0.15);
+  background: #e05f78;
+  box-shadow: none;
 }
 
 /* Terminal container */
@@ -127,6 +194,107 @@
   flex: 1;
   overflow: hidden;
   background: #1a1b26;
+}
+
+/* Font size toast */
+.font-size-toast {
+  position: absolute;
+  bottom: 24px;
+  left: 50%;
+  transform: translateX(-50%);
+  background: #24283b;
+  border: 1px solid #414868;
+  border-radius: 6px;
+  color: #c0caf5;
+  font-size: 13px;
+  font-family: 'Menlo', 'Monaco', 'Courier New', monospace;
+  padding: 6px 14px;
+  pointer-events: none;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.4);
+  z-index: 100;
+  animation: fadeInOut 1.5s ease forwards;
+}
+
+@keyframes fadeInOut {
+  0% { opacity: 0; transform: translateX(-50%) translateY(4px); }
+  15% { opacity: 1; transform: translateX(-50%) translateY(0); }
+  75% { opacity: 1; }
+  100% { opacity: 0; }
+}
+
+/* Search overlay */
+.search-overlay {
+  position: absolute;
+  top: 64px;
+  right: 24px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  background: #24283b;
+  border: 1px solid #414868;
+  border-radius: 8px;
+  padding: 8px 10px;
+  box-shadow: 0 4px 24px rgba(0, 0, 0, 0.5);
+  z-index: 200;
+}
+
+.search-input {
+  background: #1a1b26;
+  border: 1px solid #414868;
+  border-radius: 5px;
+  color: #c0caf5;
+  font-size: 13px;
+  font-family: 'Menlo', 'Monaco', 'Courier New', monospace;
+  padding: 5px 10px;
+  outline: none;
+  width: 220px;
+  transition: border-color 0.15s;
+}
+
+.search-input:focus {
+  border-color: #7aa2f7;
+}
+
+.search-input::placeholder {
+  color: #414868;
+}
+
+.search-btn {
+  background: transparent;
+  border: 1px solid #414868;
+  border-radius: 4px;
+  color: #565f89;
+  font-size: 14px;
+  padding: 4px 8px;
+  cursor: pointer;
+  transition: border-color 0.15s, color 0.15s;
+}
+
+.search-btn:hover {
+  border-color: #7aa2f7;
+  color: #c0caf5;
+}
+
+.search-result-msg {
+  font-size: 12px;
+  color: #f7768e;
+  white-space: nowrap;
+}
+
+.search-close-btn {
+  background: transparent;
+  border: none;
+  color: #565f89;
+  font-size: 14px;
+  cursor: pointer;
+  padding: 4px 6px;
+  border-radius: 4px;
+  transition: color 0.15s;
+  line-height: 1;
+}
+
+.search-close-btn:hover {
+  color: #f7768e;
 }
 
 /* xterm.js overrides */

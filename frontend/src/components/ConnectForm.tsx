@@ -2,6 +2,7 @@ import { useState, type FormEvent } from 'react';
 import { connectToHost } from '../api/connect';
 import type { AppState } from '../types';
 import type { HistoryEntry } from '../hooks/useConnectionHistory';
+import { useProfiles } from '../hooks/useProfiles';
 import './ConnectForm.css';
 
 interface ConnectFormProps {
@@ -10,6 +11,7 @@ interface ConnectFormProps {
   onStateChange: (state: AppState) => void;
   history?: HistoryEntry[];
   onShowSessions?: () => void;
+  onShowLogs?: () => void;
 }
 
 interface FormFields {
@@ -40,10 +42,17 @@ export function ConnectForm({
   onStateChange,
   history = [],
   onShowSessions,
+  onShowLogs,
 }: ConnectFormProps) {
   const [fields, setFields] = useState<FormFields>({ host: '', port: '22', user: '' });
+  const [extraEntries, setExtraEntries] = useState<FormFields[]>([]);
   const [error, setError] = useState<string | null>(null);
   const isLoading = appState === 'connecting';
+
+  // Feature ④: Connection profiles
+  const { profiles, saveProfile, deleteProfile } = useProfiles();
+  const [showSaveProfile, setShowSaveProfile] = useState(false);
+  const [profileName, setProfileName] = useState('');
 
   function handleHistoryClick(entry: HistoryEntry) {
     setFields({ host: entry.host, port: String(entry.port), user: entry.user });
@@ -56,23 +65,123 @@ export function ConnectForm({
     if (error) setError(null);
   }
 
+  function handleExtraChange(index: number, field: keyof FormFields, value: string) {
+    setExtraEntries((prev) => prev.map((entry, i) => i === index ? { ...entry, [field]: value } : entry));
+    if (error) setError(null);
+  }
+
+  function addExtraEntry() {
+    setExtraEntries((prev) => [...prev, { host: '', port: '22', user: '' }]);
+  }
+
+  function removeExtraEntry(index: number) {
+    setExtraEntries((prev) => prev.filter((_, i) => i !== index));
+  }
+
   async function handleSubmit(e: FormEvent<HTMLFormElement>) {
     e.preventDefault();
     setError(null);
-    const validationError = validateForm(fields);
-    if (validationError) { setError(validationError); return; }
-    const port = parseInt(fields.port, 10);
+
+    const allEntries = [fields, ...extraEntries].filter((entry) => entry.host.trim());
+
+    // Validate all entries
+    for (const entry of allEntries) {
+      const validationError = validateForm(entry);
+      if (validationError) { setError(validationError); return; }
+    }
+
+    if (allEntries.length === 0) {
+      setError('Host is required.');
+      return;
+    }
+
     onStateChange('connecting');
-    try {
-      const response = await connectToHost({
-        host: fields.host.trim(), port, user: fields.user.trim(),
-      });
-      onConnect(response.session_token, response.expires_at, fields.host.trim(), port, fields.user.trim());
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'An unexpected error occurred.');
+
+    if (allEntries.length === 1) {
+      // Single host: original behaviour
+      const entry = allEntries[0];
+      const port = parseInt(entry.port, 10);
+      try {
+        const response = await connectToHost({
+          host: entry.host.trim(), port, user: entry.user.trim(),
+        });
+        onConnect(response.session_token, response.expires_at, entry.host.trim(), port, entry.user.trim());
+      } catch (err) {
+        setError(err instanceof Error ? err.message : 'An unexpected error occurred.');
+        onStateChange('idle');
+      }
+      return;
+    }
+
+    // Multiple hosts: connect in parallel
+    const results = await Promise.allSettled(
+      allEntries.map((entry) =>
+        connectToHost({ host: entry.host.trim(), port: parseInt(entry.port, 10), user: entry.user.trim() })
+      )
+    );
+
+    results.forEach((result, i) => {
+      if (result.status === 'fulfilled') {
+        const entry = allEntries[i];
+        onConnect(result.value.session_token, result.value.expires_at, entry.host.trim(), parseInt(entry.port, 10), entry.user.trim());
+      }
+    });
+
+    const failedIndices = results.reduce<number[]>((acc, r, i) => {
+      if (r.status === 'rejected') acc.push(i);
+      return acc;
+    }, []);
+    if (failedIndices.length > 0 && failedIndices.length === results.length) {
+      setError('All connections failed.');
+      onStateChange('idle');
+    } else if (failedIndices.length > 0) {
+      const failedHosts = failedIndices.map((i) => allEntries[i].host);
+      setError(`${results.length - failedIndices.length}/${results.length} connected. Failed: ${failedHosts.join(', ')}`);
+      onStateChange('idle');
+    } else {
       onStateChange('idle');
     }
   }
+
+  function handleSaveProfile() {
+    const validationError = validateForm(fields);
+    if (validationError) { setError(validationError); return; }
+    const name = profileName.trim() || `${fields.user}@${fields.host}`;
+    saveProfile(name, fields.host.trim(), parseInt(fields.port, 10), fields.user.trim());
+    setProfileName('');
+    setShowSaveProfile(false);
+  }
+
+  function handleLoadProfile(id: string) {
+    const p = profiles.find((x) => x.id === id);
+    if (p) {
+      setFields({ host: p.host, port: String(p.port), user: p.user });
+      if (error) setError(null);
+    }
+  }
+
+  function handleExtraLoadProfile(index: number, id: string) {
+    const p = profiles.find((x) => x.id === id);
+    if (p) {
+      setExtraEntries((prev) =>
+        prev.map((entry, i) =>
+          i === index ? { host: p.host, port: String(p.port), user: p.user } : entry
+        )
+      );
+      if (error) setError(null);
+    }
+  }
+
+  function handleExtraLoadHistory(index: number, h: HistoryEntry) {
+    setExtraEntries((prev) =>
+      prev.map((entry, i) =>
+        i === index ? { host: h.host, port: String(h.port), user: h.user } : entry
+      )
+    );
+    if (error) setError(null);
+  }
+
+  const hasMultiple = extraEntries.length > 0;
 
   return (
     <div className="cf-page">
@@ -121,11 +230,175 @@ export function ConnectForm({
             <button type="submit" className="cf-btn" disabled={isLoading}>
               {isLoading
                 ? <><span className="cf-spinner" aria-hidden="true" />Connecting…</>
-                : 'Connect'}
+                : hasMultiple ? 'Connect All' : 'Connect'}
             </button>
           </form>
 
+          {/* Extra host entries — same layout as main form */}
+          {extraEntries.map((entry, i) => (
+            <div key={i} className="cf-extra-card">
+              <div className="cf-extra-card-header">
+                <span className="cf-extra-card-label">Host {i + 2}</span>
+                <button
+                  type="button"
+                  className="cf-extra-remove"
+                  onClick={() => removeExtraEntry(i)}
+                  disabled={isLoading}
+                  title="Remove"
+                >
+                  ✕
+                </button>
+              </div>
+
+              <div className="cf-field">
+                <label>Host</label>
+                <input
+                  type="text"
+                  placeholder="192.168.1.1 or hostname.example.com"
+                  value={entry.host}
+                  onChange={(e) => handleExtraChange(i, 'host', e.target.value)}
+                  disabled={isLoading}
+                  autoComplete="off"
+                />
+              </div>
+
+              <div className="cf-row">
+                <div className="cf-field cf-field--port">
+                  <label>Port</label>
+                  <input
+                    type="number"
+                    placeholder="22"
+                    value={entry.port}
+                    onChange={(e) => handleExtraChange(i, 'port', e.target.value)}
+                    disabled={isLoading}
+                    min={1}
+                    max={65535}
+                  />
+                </div>
+                <div className="cf-field">
+                  <label>User</label>
+                  <input
+                    type="text"
+                    placeholder="ubuntu"
+                    value={entry.user}
+                    onChange={(e) => handleExtraChange(i, 'user', e.target.value)}
+                    disabled={isLoading}
+                    autoComplete="username"
+                  />
+                </div>
+              </div>
+
+              {/* Profile chips + Recent chips for this entry */}
+              {(profiles.length > 0 || history.length > 0) && (
+                <div className="cf-extra-chips">
+                  {profiles.map((p) => (
+                    <button
+                      key={`p-${p.id}`}
+                      type="button"
+                      className="cf-extra-profile-chip"
+                      onClick={() => handleExtraLoadProfile(i, p.id)}
+                      disabled={isLoading}
+                      title={`${p.host}:${p.port} · ${p.user}`}
+                    >
+                      {p.name}
+                    </button>
+                  ))}
+                  {history.map((h, hi) => (
+                    <button
+                      key={`h-${hi}`}
+                      type="button"
+                      className="cf-extra-history-chip"
+                      onClick={() => handleExtraLoadHistory(i, h)}
+                      disabled={isLoading}
+                      title={`${h.host}:${h.port} · ${h.user}`}
+                    >
+                      {h.user}@{h.host}{h.port !== 22 ? `:${h.port}` : ''}
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+          ))}
+
+          {/* Add host button — Save as Profile の上 */}
+          <div className="cf-add-host-row">
+            <button
+              type="button"
+              className="cf-add-host-btn"
+              onClick={addExtraEntry}
+              disabled={isLoading}
+            >
+              + Add host
+            </button>
+          </div>
+
+          {/* Save as Profile */}
+          <div className="cf-save-profile-row">
+            {!showSaveProfile ? (
+              <button
+                type="button"
+                className="cf-save-profile-btn"
+                onClick={() => setShowSaveProfile(true)}
+                disabled={isLoading}
+              >
+                + Save as Profile
+              </button>
+            ) : (
+              <div className="cf-save-profile-inline">
+                <input
+                  type="text"
+                  className="cf-profile-name-input"
+                  placeholder={fields.user && fields.host ? `${fields.user}@${fields.host}` : 'Profile name'}
+                  value={profileName}
+                  onChange={(e) => setProfileName(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') handleSaveProfile();
+                    if (e.key === 'Escape') setShowSaveProfile(false);
+                  }}
+                  autoFocus
+                />
+                <button type="button" className="cf-save-profile-confirm" onClick={handleSaveProfile}>
+                  Save
+                </button>
+                <button type="button" className="cf-save-profile-cancel" onClick={() => setShowSaveProfile(false)}>
+                  Cancel
+                </button>
+              </div>
+            )}
+          </div>
+
           {error && <div className="cf-error" role="alert">{error}</div>}
+
+          {/* Feature ④: Profiles section */}
+          {profiles.length > 0 && (
+            <div className="cf-profiles">
+              <p className="cf-profiles-label">Profiles</p>
+              <ul className="cf-profiles-list">
+                {profiles.map((p) => (
+                  <li key={p.id} className="cf-profile-item">
+                    <button
+                      type="button"
+                      className="cf-profile-load"
+                      onClick={() => handleLoadProfile(p.id)}
+                      disabled={isLoading}
+                    >
+                      <span className="cf-profile-name">{p.name}</span>
+                      <span className="cf-profile-detail">{p.host}:{p.port} · {p.user}</span>
+                    </button>
+                    <button
+                      type="button"
+                      className="cf-profile-delete"
+                      onClick={() => deleteProfile(p.id)}
+                      title="Delete profile"
+                      disabled={isLoading}
+                    >
+                      ✕
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
 
           {history.length > 0 && (
             <div className="cf-history">
@@ -156,12 +429,19 @@ export function ConnectForm({
           ))}
         </ul>
 
-        {/* Footer */}
-        {onShowSessions && (
-          <button className="cf-sessions-btn" onClick={onShowSessions}>
-            View active sessions →
-          </button>
-        )}
+        {/* Footer links */}
+        <div className="cf-footer-links">
+          {onShowSessions && (
+            <button className="cf-sessions-btn" onClick={onShowSessions}>
+              View active sessions →
+            </button>
+          )}
+          {onShowLogs && (
+            <button className="cf-sessions-btn" onClick={onShowLogs}>
+              View logs →
+            </button>
+          )}
+        </div>
       </div>
     </div>
   );

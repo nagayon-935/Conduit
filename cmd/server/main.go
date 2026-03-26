@@ -12,6 +12,7 @@ import (
 
 	"github.com/nagayon-935/conduit/internal/api"
 	"github.com/nagayon-935/conduit/internal/config"
+	"github.com/nagayon-935/conduit/internal/connlog"
 	"github.com/nagayon-935/conduit/internal/session"
 	"github.com/nagayon-935/conduit/internal/sshconn"
 	"github.com/nagayon-935/conduit/internal/vault"
@@ -47,6 +48,7 @@ func main() {
 
 	dialer := sshconn.NewDialer()
 	sessionManager := session.NewManager(cfg)
+	logStore := connlog.NewStore(200)
 
 	// Step 3: Start session garbage collector.
 	rootCtx, rootCancel := context.WithCancel(context.Background())
@@ -56,7 +58,7 @@ func main() {
 	slog.Info("session GC started", "interval", cfg.SessionGCInterval)
 
 	// Step 4: Wire routes.
-	handler := api.NewHandler(cfg, sessionManager, vaultClient, dialer)
+	handler := api.NewHandler(cfg, sessionManager, vaultClient, dialer, logStore)
 	routes := handler.Routes()
 
 	srv := &http.Server{

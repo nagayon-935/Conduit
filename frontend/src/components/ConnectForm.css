@@ -242,7 +242,14 @@ input[type='number'] { -moz-appearance: textfield; appearance: textfield; }
   color: #9aa5ce;
 }
 
-/* ── Sessions link ───────────────────────────────────────────────────── */
+/* ── Sessions / Logs links ───────────────────────────────────────────── */
+.cf-footer-links {
+  display: flex;
+  gap: clamp(12px, 1.2vw, 20px);
+  flex-wrap: wrap;
+  justify-content: center;
+}
+
 .cf-sessions-btn {
   background: transparent;
   border: none;
@@ -253,6 +260,288 @@ input[type='number'] { -moz-appearance: textfield; appearance: textfield; }
   transition: color 0.15s;
 }
 .cf-sessions-btn:hover { color: #7aa2f7; }
+
+/* ── Save as Profile ─────────────────────────────────────────────────── */
+.cf-save-profile-row {
+  margin-top: clamp(10px, 1vh, 14px);
+}
+
+.cf-save-profile-btn {
+  background: transparent;
+  border: 1px dashed #2a2c3d;
+  border-radius: clamp(6px, 0.6vw, 9px);
+  color: #565f89;
+  font-size: clamp(12px, 0.9vw, 14px);
+  padding: clamp(7px, 0.7vh, 10px) clamp(12px, 1.2vw, 16px);
+  cursor: pointer;
+  width: 100%;
+  transition: border-color 0.15s, color 0.15s;
+}
+.cf-save-profile-btn:hover:not(:disabled) {
+  border-color: #7aa2f7;
+  color: #7aa2f7;
+}
+.cf-save-profile-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+
+.cf-save-profile-inline {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+.cf-profile-name-input {
+  flex: 1;
+  background: #1a1b26;
+  border: 1px solid #2a2c3d;
+  border-radius: clamp(6px, 0.6vw, 9px);
+  color: #c0caf5;
+  font-size: clamp(13px, 1vw, 15px);
+  padding: clamp(7px, 0.7vh, 10px) clamp(10px, 1vw, 14px);
+  outline: none;
+  font-family: inherit;
+  transition: border-color 0.15s;
+}
+.cf-profile-name-input:focus { border-color: #7aa2f7; }
+.cf-profile-name-input::placeholder { color: #3b4072; }
+
+.cf-save-profile-confirm {
+  background: rgba(122, 162, 247, 0.12);
+  border: 1px solid rgba(122, 162, 247, 0.3);
+  border-radius: 6px;
+  color: #7aa2f7;
+  font-size: 13px;
+  padding: 7px 14px;
+  cursor: pointer;
+  transition: background 0.15s;
+  white-space: nowrap;
+}
+.cf-save-profile-confirm:hover { background: rgba(122, 162, 247, 0.2); }
+
+.cf-save-profile-cancel {
+  background: transparent;
+  border: 1px solid #2a2c3d;
+  border-radius: 6px;
+  color: #565f89;
+  font-size: 13px;
+  padding: 7px 14px;
+  cursor: pointer;
+  transition: color 0.15s;
+  white-space: nowrap;
+}
+.cf-save-profile-cancel:hover { color: #c0caf5; }
+
+/* ── Profiles section ────────────────────────────────────────────────── */
+.cf-profiles {
+  margin-top: clamp(18px, 2vh, 26px);
+  padding-top: clamp(16px, 1.8vh, 24px);
+  border-top: 1px solid #1e2030;
+}
+
+.cf-profiles-label {
+  font-size: clamp(11px, 0.85vw, 13px);
+  font-weight: 700;
+  color: #565f89;
+  text-transform: uppercase;
+  letter-spacing: 0.8px;
+  margin: 0 0 clamp(10px, 1vh, 14px) 0;
+}
+
+.cf-profiles-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: clamp(5px, 0.5vh, 8px);
+}
+
+.cf-profile-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.cf-profile-load {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: clamp(9px, 0.9vh, 13px) clamp(12px, 1.2vw, 16px);
+  background: rgba(26, 27, 38, 0.6);
+  border: 1px solid #1e2030;
+  border-radius: clamp(8px, 0.8vw, 11px);
+  cursor: pointer;
+  transition: background 0.12s, border-color 0.12s;
+  text-align: left;
+  min-width: 0;
+}
+.cf-profile-load:hover:not(:disabled) {
+  background: rgba(65, 72, 104, 0.3);
+  border-color: #3b4072;
+}
+.cf-profile-load:disabled { opacity: 0.4; cursor: not-allowed; }
+
+.cf-profile-name {
+  font-size: clamp(13px, 1vw, 15px);
+  color: #c0caf5;
+  font-weight: 600;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.cf-profile-detail {
+  font-size: clamp(11px, 0.85vw, 13px);
+  color: #565f89;
+  font-family: 'Menlo', 'Monaco', 'Courier New', monospace;
+  white-space: nowrap;
+  margin-left: 8px;
+}
+
+.cf-profile-delete {
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: 5px;
+  color: #414868;
+  font-size: 13px;
+  padding: 5px 8px;
+  cursor: pointer;
+  flex-shrink: 0;
+  transition: color 0.15s, border-color 0.15s;
+  line-height: 1;
+}
+.cf-profile-delete:hover:not(:disabled) {
+  color: #f7768e;
+  border-color: rgba(247, 118, 142, 0.3);
+}
+.cf-profile-delete:disabled { opacity: 0.4; cursor: not-allowed; }
+
+/* ── Extra host cards (same layout as main form) ─────────────────────── */
+.cf-extra-card {
+  margin-top: clamp(10px, 1.2vh, 16px);
+  padding: clamp(12px, 1.4vh, 20px) clamp(14px, 1.4vw, 20px);
+  background: #1e2030;
+  border: 1px solid #2a2c3d;
+  border-radius: clamp(8px, 0.8vw, 12px);
+}
+
+.cf-extra-card-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: clamp(10px, 1.2vh, 16px);
+}
+
+.cf-extra-card-label {
+  font-size: clamp(11px, 0.85vw, 13px);
+  font-weight: 700;
+  color: #565f89;
+  text-transform: uppercase;
+  letter-spacing: 0.6px;
+}
+
+.cf-extra-remove {
+  background: transparent;
+  border: none;
+  color: #565f89;
+  cursor: pointer;
+  font-size: 14px;
+  padding: 3px 6px;
+  border-radius: 4px;
+  transition: color 0.12s;
+  line-height: 1;
+}
+
+.cf-extra-remove:hover:not(:disabled) {
+  color: #f7768e;
+}
+
+.cf-extra-remove:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+/* Chips row inside extra card (Profiles + Recent) */
+.cf-extra-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: clamp(8px, 1vh, 12px);
+}
+
+/* Profile chip — blue */
+.cf-extra-profile-chip {
+  background: transparent;
+  border: 1px solid #2a2c3d;
+  border-radius: 20px;
+  color: #7aa2f7;
+  font-size: clamp(11px, 0.8vw, 13px);
+  padding: 3px 12px;
+  cursor: pointer;
+  transition: background 0.12s, border-color 0.12s;
+  white-space: nowrap;
+}
+
+.cf-extra-profile-chip:hover:not(:disabled) {
+  background: rgba(122, 162, 247, 0.1);
+  border-color: #7aa2f7;
+}
+
+.cf-extra-profile-chip:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+/* Recent chip — green (履歴らしく色を変えて区別) */
+.cf-extra-history-chip {
+  background: transparent;
+  border: 1px solid #2a2c3d;
+  border-radius: 20px;
+  color: #9ece6a;
+  font-size: clamp(11px, 0.8vw, 13px);
+  font-family: 'Menlo', 'Monaco', 'Courier New', monospace;
+  padding: 3px 12px;
+  cursor: pointer;
+  transition: background 0.12s, border-color 0.12s;
+  white-space: nowrap;
+}
+
+.cf-extra-history-chip:hover:not(:disabled) {
+  background: rgba(158, 206, 106, 0.1);
+  border-color: #9ece6a;
+}
+
+.cf-extra-history-chip:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+/* ── Add host button ─────────────────────────────────────────────────── */
+.cf-add-host-row {
+  margin-top: 8px;
+}
+
+.cf-add-host-btn {
+  background: transparent;
+  border: 1px dashed #2a2c3d;
+  border-radius: clamp(6px, 0.6vw, 9px);
+  color: #565f89;
+  font-size: clamp(12px, 0.9vw, 14px);
+  padding: clamp(7px, 0.7vh, 10px) clamp(12px, 1.2vw, 16px);
+  cursor: pointer;
+  width: 100%;
+  transition: border-color 0.15s, color 0.15s;
+}
+
+.cf-add-host-btn:hover:not(:disabled) {
+  border-color: #9ece6a;
+  color: #9ece6a;
+}
+
+.cf-add-host-btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
 
 /* ── Responsive: スマホは固定幅を解除して全幅 ────────────────────────── */
 @media (max-width: 600px) {

@@ -189,6 +189,30 @@ code {
 .state-badge--disconnected { background: rgba(224, 175, 104, 0.12); color: #e0af68; border: 1px solid rgba(224, 175, 104, 0.25); }
 .state-badge--terminated   { background: rgba(247, 118, 142, 0.10); color: #f7768e; border: 1px solid rgba(247, 118, 142, 0.20); }
 
+/* ── Kill button ─────────────────────────────────────────────────────── */
+.sl-kill-btn {
+  background: transparent;
+  border: 1px solid rgba(247, 118, 142, 0.35);
+  border-radius: 5px;
+  color: #f7768e;
+  font-size: clamp(11px, 0.85vw, 13px);
+  font-weight: 600;
+  padding: 3px 10px;
+  cursor: pointer;
+  transition: background 0.15s, border-color 0.15s;
+  white-space: nowrap;
+}
+
+.sl-kill-btn:hover:not(:disabled) {
+  background: rgba(247, 118, 142, 0.12);
+  border-color: #f7768e;
+}
+
+.sl-kill-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
 /* ── Responsive ──────────────────────────────────────────────────────── */
 @media (max-width: 600px) {
   .sl-stats { flex-direction: column; }

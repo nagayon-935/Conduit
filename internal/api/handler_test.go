@@ -18,6 +18,7 @@ import (
 	"github.com/gorilla/websocket"
 	"github.com/nagayon-935/conduit/internal/api"
 	"github.com/nagayon-935/conduit/internal/config"
+	"github.com/nagayon-935/conduit/internal/connlog"
 	"github.com/nagayon-935/conduit/internal/session"
 	"github.com/nagayon-935/conduit/internal/sshconn"
 	gossh "golang.org/x/crypto/ssh"
@@ -107,7 +108,7 @@ func newTestConfig() *config.Config {
 func newTestHandler(v *mockVaultClient, d *mockSSHDialer) http.Handler {
 	cfg := newTestConfig()
 	sm := session.NewManager(cfg)
-	h := api.NewHandler(cfg, sm, v, d)
+	h := api.NewHandler(cfg, sm, v, d, connlog.NewStore(100))
 	return h.Routes()
 }
 

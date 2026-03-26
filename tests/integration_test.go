@@ -19,6 +19,7 @@ import (
 	"github.com/gorilla/websocket"
 	"github.com/nagayon-935/conduit/internal/api"
 	"github.com/nagayon-935/conduit/internal/config"
+	"github.com/nagayon-935/conduit/internal/connlog"
 	"github.com/nagayon-935/conduit/internal/session"
 	"github.com/nagayon-935/conduit/internal/sshconn"
 	vaultpkg "github.com/nagayon-935/conduit/internal/vault"
@@ -205,7 +206,7 @@ func buildTestServer(t *testing.T, vaultURL string) *httptest.Server {
 
 	dialer := sshconn.NewDialer()
 	sm := session.NewManager(cfg)
-	handler := api.NewHandler(cfg, sm, vaultClient, dialer)
+	handler := api.NewHandler(cfg, sm, vaultClient, dialer, connlog.NewStore(200))
 	return httptest.NewServer(handler.Routes())
 }
 

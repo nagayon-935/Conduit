@@ -25,6 +25,9 @@ export type WsControlMessage =
 
 export type AppState = 'idle' | 'connecting' | 'connected' | 'disconnected' | 'error';
 
+/** Terminal pane layout: single / side-by-side / top-bottom / 2×2 grid */
+export type LayoutType = '1' | '2v' | '2h' | '4';
+
 export interface SessionInfo {
   token: string;
   host: string;

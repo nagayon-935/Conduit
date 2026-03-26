@@ -7,6 +7,7 @@ import (
 
 	"github.com/gorilla/websocket"
 	"github.com/nagayon-935/conduit/internal/config"
+	"github.com/nagayon-935/conduit/internal/connlog"
 	"github.com/nagayon-935/conduit/internal/session"
 	"github.com/nagayon-935/conduit/internal/sshconn"
 	"github.com/nagayon-935/conduit/internal/vault"
@@ -19,18 +20,20 @@ type Handler struct {
 	vault    vault.VaultClient
 	dialer   sshconn.SSHDialer
 	upgrader websocket.Upgrader
+	logs     *connlog.Store
 }
 
 // NewHandler constructs a Handler wiring together all application dependencies.
-func NewHandler(cfg *config.Config, sm *session.Manager, vc vault.VaultClient, d sshconn.SSHDialer) *Handler {
+func NewHandler(cfg *config.Config, sm *session.Manager, vc vault.VaultClient, d sshconn.SSHDialer, ls *connlog.Store) *Handler {
 	return &Handler{
 		config:   cfg,
 		sessions: sm,
 		vault:    vc,
 		dialer:   d,
+		logs:     ls,
 		upgrader: websocket.Upgrader{
 			// Allow all origins for development; tighten for production.
-			CheckOrigin: func(r *http.Request) bool { return true },
+			CheckOrigin:     func(r *http.Request) bool { return true },
 			ReadBufferSize:  4096,
 			WriteBufferSize: 4096,
 		},
@@ -44,6 +47,8 @@ func (h *Handler) Routes() http.Handler {
 	mux.HandleFunc("GET /ws", h.handleTerminal)
 	mux.HandleFunc("GET /healthz", h.handleHealth)
 	mux.HandleFunc("GET /api/sessions", h.handleListSessions)
+	mux.HandleFunc("DELETE /api/sessions/{token}", h.handleKillSession)
+	mux.HandleFunc("GET /api/logs", h.handleListLogs)
 	return corsMiddleware(loggingMiddleware(mux))
 }
 
@@ -78,7 +83,7 @@ func writeJSON(w http.ResponseWriter, code int, v any) {
 func corsMiddleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Access-Control-Allow-Origin", "*")
-		w.Header().Set("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
+		w.Header().Set("Access-Control-Allow-Methods", "GET, POST, DELETE, OPTIONS")
 		w.Header().Set("Access-Control-Allow-Headers", "Content-Type, Authorization")
 		if r.Method == http.MethodOptions {
 			w.WriteHeader(http.StatusNoContent)

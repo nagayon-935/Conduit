@@ -1,0 +1,255 @@
+/* ── Backdrop ─────────────────────────────────────────────────────────── */
+.nco-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(15, 15, 20, 0.75);
+  z-index: 500;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* ── Card ─────────────────────────────────────────────────────────────── */
+.nco-card {
+  position: relative;
+  background: #24283b;
+  border: 1px solid #414868;
+  border-radius: 12px;
+  padding: 28px 32px;
+  width: 400px;
+  max-width: calc(100vw - 32px);
+  box-shadow: 0 8px 40px rgba(0, 0, 0, 0.6);
+  animation: nco-appear 0.15s ease-out;
+}
+
+@keyframes nco-appear {
+  from {
+    opacity: 0;
+    transform: scale(0.96) translateY(-8px);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1) translateY(0);
+  }
+}
+
+/* ── Header ───────────────────────────────────────────────────────────── */
+.nco-title {
+  font-size: 18px;
+  font-weight: 600;
+  color: #c0caf5;
+  margin: 0 0 20px 0;
+}
+
+.nco-close-btn {
+  position: absolute;
+  top: 16px;
+  right: 16px;
+  background: transparent;
+  border: none;
+  color: #565f89;
+  font-size: 16px;
+  cursor: pointer;
+  padding: 4px 8px;
+  border-radius: 4px;
+  line-height: 1;
+  transition: color 0.12s, background 0.12s;
+}
+
+.nco-close-btn:hover {
+  color: #c0caf5;
+  background: rgba(86, 95, 137, 0.2);
+}
+
+/* ── Form ─────────────────────────────────────────────────────────────── */
+.nco-form {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.nco-field {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+
+.nco-field label {
+  font-size: 12px;
+  font-weight: 600;
+  color: #9aa5ce;
+  letter-spacing: 0.2px;
+}
+
+.nco-field input {
+  background: #1a1b26;
+  border: 1px solid #2a2c3d;
+  border-radius: 8px;
+  color: #c0caf5;
+  font-size: 14px;
+  padding: 9px 12px;
+  outline: none;
+  width: 100%;
+  box-sizing: border-box;
+  font-family: inherit;
+  transition: border-color 0.15s, box-shadow 0.15s;
+}
+
+.nco-field input::placeholder {
+  color: #3b4072;
+}
+
+.nco-field input:focus {
+  border-color: #7aa2f7;
+  box-shadow: 0 0 0 3px rgba(122, 162, 247, 0.14);
+}
+
+.nco-field input:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+/* Port + User row */
+.nco-row {
+  display: flex;
+  gap: 12px;
+}
+
+.nco-row .nco-field {
+  flex: 1;
+}
+
+.nco-field--port {
+  flex: 0 0 90px !important;
+}
+
+/* Remove number input spinners */
+.nco-field input[type='number']::-webkit-inner-spin-button,
+.nco-field input[type='number']::-webkit-outer-spin-button {
+  -webkit-appearance: none;
+}
+.nco-field input[type='number'] {
+  -moz-appearance: textfield;
+  appearance: textfield;
+}
+
+/* ── Connect button ───────────────────────────────────────────────────── */
+.nco-submit-btn {
+  margin-top: 4px;
+  padding: 11px;
+  background: rgba(122, 162, 247, 0.15);
+  border: 1px solid rgba(122, 162, 247, 0.45);
+  border-radius: 8px;
+  color: #7aa2f7;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  width: 100%;
+  transition: background 0.15s, border-color 0.15s, opacity 0.15s;
+}
+
+.nco-submit-btn:hover:not(:disabled) {
+  background: rgba(122, 162, 247, 0.25);
+  border-color: #7aa2f7;
+}
+
+.nco-submit-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* ── Spinner ──────────────────────────────────────────────────────────── */
+.nco-spinner {
+  width: 14px;
+  height: 14px;
+  border: 2px solid rgba(122, 162, 247, 0.3);
+  border-top-color: #7aa2f7;
+  border-radius: 50%;
+  animation: nco-spin 0.7s linear infinite;
+  flex-shrink: 0;
+}
+
+@keyframes nco-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+/* ── Error ────────────────────────────────────────────────────────────── */
+.nco-error {
+  margin-top: 4px;
+  padding: 9px 12px;
+  background: rgba(247, 118, 142, 0.08);
+  border: 1px solid rgba(247, 118, 142, 0.25);
+  border-radius: 7px;
+  color: #f7768e;
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+/* ── History / Profile chips ──────────────────────────────────────────── */
+.nco-quick-section {
+  margin-top: 16px;
+  padding-top: 16px;
+  border-top: 1px solid #2a2c3d;
+}
+
+.nco-quick-label {
+  font-size: 11px;
+  font-weight: 700;
+  color: #565f89;
+  text-transform: uppercase;
+  letter-spacing: 0.8px;
+  margin: 0 0 8px 0;
+}
+
+.nco-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  max-height: 96px;
+  overflow-y: auto;
+  scrollbar-width: thin;
+  scrollbar-color: #414868 transparent;
+}
+
+.nco-chips::-webkit-scrollbar {
+  width: 4px;
+}
+
+.nco-chips::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.nco-chips::-webkit-scrollbar-thumb {
+  background: #414868;
+  border-radius: 2px;
+}
+
+.nco-chip {
+  background: rgba(26, 27, 38, 0.8);
+  border: 1px solid #2a2c3d;
+  border-radius: 5px;
+  color: #a9b1d6;
+  font-size: 12px;
+  font-family: 'Menlo', 'Monaco', 'Courier New', monospace;
+  padding: 4px 10px;
+  cursor: pointer;
+  transition: background 0.12s, border-color 0.12s, color 0.12s;
+  white-space: nowrap;
+}
+
+.nco-chip:hover:not(:disabled) {
+  background: rgba(65, 72, 104, 0.4);
+  border-color: #414868;
+  color: #c0caf5;
+}
+
+.nco-chip:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
