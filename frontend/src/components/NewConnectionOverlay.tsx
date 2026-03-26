@@ -1,7 +1,6 @@
 import { useState, useEffect, type FormEvent } from 'react';
 import { connectToHost } from '../api/connect';
-import type { HistoryEntry } from '../hooks/useConnectionHistory';
-import type { Profile } from '../hooks/useProfiles';
+import type { HistoryEntry, Profile } from '../types';
 import './NewConnectionOverlay.css';
 
 interface NewConnectionOverlayProps {
