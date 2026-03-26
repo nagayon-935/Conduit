@@ -27,14 +27,20 @@ function validateForm(fields: FormFields): string | null {
 }
 
 const FEATURES = [
-  { icon: '⚡', text: 'Short-lived SSH certificates via Vault' },
-  { icon: '🔄', text: '15-min session grace period' },
-  { icon: '🖥️', text: 'Multi-tab terminal sharing' },
-  { icon: '🔐', text: 'In-memory key generation' },
-  { icon: '🌐', text: 'WebSocket with auto-reconnect' },
+  { icon: '⚡', text: 'Short-lived certs' },
+  { icon: '🔄', text: 'Grace period' },
+  { icon: '🖥️', text: 'Multi-tab sharing' },
+  { icon: '🔐', text: 'In-memory keys' },
+  { icon: '🌐', text: 'Auto-reconnect' },
 ];
 
-export function ConnectForm({ appState, onConnect, onStateChange, history = [], onShowSessions }: ConnectFormProps) {
+export function ConnectForm({
+  appState,
+  onConnect,
+  onStateChange,
+  history = [],
+  onShowSessions,
+}: ConnectFormProps) {
   const [fields, setFields] = useState<FormFields>({ host: '', port: '22', user: '' });
   const [error, setError] = useState<string | null>(null);
   const isLoading = appState === 'connecting';
@@ -58,7 +64,9 @@ export function ConnectForm({ appState, onConnect, onStateChange, history = [], 
     const port = parseInt(fields.port, 10);
     onStateChange('connecting');
     try {
-      const response = await connectToHost({ host: fields.host.trim(), port, user: fields.user.trim() });
+      const response = await connectToHost({
+        host: fields.host.trim(), port, user: fields.user.trim(),
+      });
       onConnect(response.session_token, response.expires_at, fields.host.trim(), port, fields.user.trim());
     } catch (err) {
       setError(err instanceof Error ? err.message : 'An unexpected error occurred.');
@@ -67,97 +75,93 @@ export function ConnectForm({ appState, onConnect, onStateChange, history = [], 
   }
 
   return (
-    <div className="connect-page">
-      {/* Left: Branding */}
-      <div className="connect-left">
-        <div className="brand">
-          <div className="brand-icon">⛵</div>
-          <h1 className="brand-title">Conduit</h1>
-          <p className="brand-tagline">Secure Web SSH Terminal</p>
-          <p className="brand-desc">
-            Browser-based SSH access powered by<br />
-            short-lived Vault certificates.
-          </p>
-        </div>
+    <div className="cf-page">
+      <div className="cf-container">
+        {/* Hero */}
+        <header className="cf-hero">
+          <div className="cf-logo">⛵</div>
+          <h1 className="cf-title">Conduit</h1>
+          <p className="cf-subtitle">Secure Web SSH Terminal</p>
+        </header>
 
-        <ul className="feature-list">
-          {FEATURES.map((f) => (
-            <li key={f.text} className="feature-item">
-              <span className="feature-icon">{f.icon}</span>
-              <span className="feature-text">{f.text}</span>
-            </li>
-          ))}
-        </ul>
-
-        <div className="terminal-preview">
-          <div className="terminal-bar">
-            <span className="dot dot--red" />
-            <span className="dot dot--yellow" />
-            <span className="dot dot--green" />
-            <span className="terminal-bar-title">bash</span>
-          </div>
-          <div className="terminal-body">
-            <p><span className="term-prompt">local $</span> <span className="term-cmd">open https://conduit/</span></p>
-            <p className="term-comment"># Vault が証明書を発行 (TTL 5m)</p>
-            <p><span className="term-prompt">user@remote:~$</span> <span className="term-cursor">█</span></p>
-          </div>
-        </div>
-
-        {onShowSessions && (
-          <button className="sessions-link" onClick={onShowSessions}>
-            View active sessions →
-          </button>
-        )}
-      </div>
-
-      {/* Right: Form */}
-      <div className="connect-right">
-        <div className="connect-card">
-          <div className="connect-header">
-            <h2 className="connect-title">New Connection</h2>
-            <p className="connect-subtitle">Enter the SSH server details below</p>
-          </div>
-
-          <form className="connect-form" onSubmit={handleSubmit} noValidate>
-            <div className="field-group">
+        {/* Form card */}
+        <div className="cf-card">
+          <form className="cf-form" onSubmit={handleSubmit} noValidate>
+            <div className="cf-field">
               <label htmlFor="host">Host</label>
-              <input id="host" name="host" type="text" placeholder="192.168.1.1 or hostname"
-                value={fields.host} onChange={handleChange} disabled={isLoading} autoComplete="off" autoFocus />
+              <input
+                id="host" name="host" type="text"
+                placeholder="192.168.1.1 or hostname.example.com"
+                value={fields.host} onChange={handleChange}
+                disabled={isLoading} autoComplete="off" autoFocus
+              />
             </div>
-            <div className="field-row">
-              <div className="field-group field-group--port">
+
+            <div className="cf-row">
+              <div className="cf-field cf-field--port">
                 <label htmlFor="port">Port</label>
-                <input id="port" name="port" type="number" placeholder="22"
-                  value={fields.port} onChange={handleChange} disabled={isLoading} min={1} max={65535} />
+                <input
+                  id="port" name="port" type="number"
+                  placeholder="22" value={fields.port}
+                  onChange={handleChange} disabled={isLoading}
+                  min={1} max={65535}
+                />
               </div>
-              <div className="field-group">
+              <div className="cf-field">
                 <label htmlFor="user">User</label>
-                <input id="user" name="user" type="text" placeholder="root"
-                  value={fields.user} onChange={handleChange} disabled={isLoading} autoComplete="username" />
+                <input
+                  id="user" name="user" type="text"
+                  placeholder="ubuntu" value={fields.user}
+                  onChange={handleChange} disabled={isLoading}
+                  autoComplete="username"
+                />
               </div>
             </div>
-            <button type="submit" className="connect-btn" disabled={isLoading}>
-              {isLoading ? (<><span className="spinner" aria-hidden="true" />Connecting…</>) : 'Connect'}
+
+            <button type="submit" className="cf-btn" disabled={isLoading}>
+              {isLoading
+                ? <><span className="cf-spinner" aria-hidden="true" />Connecting…</>
+                : 'Connect'}
             </button>
           </form>
 
-          {error && <div className="connect-error" role="alert">{error}</div>}
+          {error && <div className="cf-error" role="alert">{error}</div>}
 
           {history.length > 0 && (
-            <div className="history-section">
-              <p className="history-label">Recent Connections</p>
-              <ul className="history-list">
+            <div className="cf-history">
+              <p className="cf-history-label">Recent</p>
+              <ul className="cf-history-list">
                 {history.map((entry, i) => (
-                  <li key={i} className="history-item" onClick={() => handleHistoryClick(entry)}
-                    role="button" tabIndex={0} onKeyDown={(e) => e.key === 'Enter' && handleHistoryClick(entry)}>
-                    <span className="history-target">{entry.host}:{entry.port}</span>
-                    <span className="history-user">as {entry.user}</span>
+                  <li
+                    key={i} className="cf-history-item"
+                    role="button" tabIndex={0}
+                    onClick={() => handleHistoryClick(entry)}
+                    onKeyDown={(e) => e.key === 'Enter' && handleHistoryClick(entry)}
+                  >
+                    <span className="cf-history-host">{entry.host}:{entry.port}</span>
+                    <span className="cf-history-user">as {entry.user}</span>
                   </li>
                 ))}
               </ul>
             </div>
           )}
         </div>
+
+        {/* Feature chips */}
+        <ul className="cf-features">
+          {FEATURES.map((f) => (
+            <li key={f.text} className="cf-feature">
+              <span>{f.icon}</span> {f.text}
+            </li>
+          ))}
+        </ul>
+
+        {/* Footer */}
+        {onShowSessions && (
+          <button className="cf-sessions-btn" onClick={onShowSessions}>
+            View active sessions →
+          </button>
+        )}
       </div>
     </div>
   );
