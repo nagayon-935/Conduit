@@ -11,3 +11,10 @@ coverage.out
 # Node
 frontend/node_modules/
 frontend/dist/
+
+# 本番環境変数（シークレットを含むためコミットしない）
+.env.prod
+
+# TLS 証明書（自動生成されるためコミットしない）
+nginx/certs/*.crt
+nginx/certs/*.key

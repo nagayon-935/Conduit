@@ -1,0 +1,34 @@
+# VM①（Conduit サーバー）用 docker-compose
+# 使い方: docker compose -f docker-compose.prod.yml up -d
+# 事前に .env.prod を作成し、フロントエンドをビルドしておくこと（DEPLOY.md 参照）
+
+services:
+  backend:
+    build:
+      context: .
+      dockerfile: docker/backend/Dockerfile
+    container_name: conduit-backend
+    env_file:
+      - .env.prod
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:8080/healthz"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+
+  nginx:
+    image: nginx:1.27-alpine
+    container_name: conduit-nginx
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./nginx/certs:/etc/nginx/certs:ro
+      - ./frontend/dist:/usr/share/nginx/html:ro
+    depends_on:
+      backend:
+        condition: service_healthy
+    restart: unless-stopped

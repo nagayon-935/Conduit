@@ -1,0 +1,27 @@
+# VM②（Vault サーバー）用 docker-compose
+# 使い方: docker compose -f docker-compose.vault.yml up -d
+
+services:
+  vault:
+    image: hashicorp/vault:1.17
+    container_name: conduit-vault
+    ports:
+      # ラボ内ネットワークにのみ公開（外部インターフェースを絞る場合は "192.168.x.x:8200:8200" に変更）
+      - "8200:8200"
+    volumes:
+      - ./docker/vault-prod/vault.hcl:/vault/config/vault.hcl:ro
+      - vault-data:/vault/data
+    cap_add:
+      - IPC_LOCK
+    command: vault server -config=/vault/config/vault.hcl
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "vault", "status", "-address=http://127.0.0.1:8200"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+
+volumes:
+  vault-data:
+    driver: local
