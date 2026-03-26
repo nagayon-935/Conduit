@@ -49,20 +49,21 @@ func (m *Manager) Get(token string) (*Session, error) {
 	return sess, nil
 }
 
-// Attach links ws to the session identified by token.
-// It returns an error if the session does not exist, is terminated, or has expired.
-func (m *Manager) Attach(token string, ws *websocket.Conn) (*Session, error) {
+// Attach links ws to the session identified by token using the given connID.
+// It returns the session, a channel that is closed when this connection is removed,
+// and an error if the session does not exist, is terminated, or has expired.
+func (m *Manager) Attach(token, connID string, ws *websocket.Conn) (*Session, <-chan struct{}, error) {
 	sess, err := m.Get(token)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	if sess.IsExpired() {
 		_ = m.Terminate(token)
-		return nil, fmt.Errorf("session: session has expired")
+		return nil, nil, fmt.Errorf("session: session has expired")
 	}
-	sess.SetWebSocket(ws)
-	slog.Info("websocket attached to session", "token", token)
-	return sess, nil
+	removedCh := sess.AddWebSocket(connID, ws)
+	slog.Info("websocket attached to session", "token", token, "connID", connID)
+	return sess, removedCh, nil
 }
 
 // Terminate closes the session and removes it from the store.
@@ -107,4 +108,17 @@ func (m *Manager) gc() {
 		slog.Info("GC: reaping expired session", "token", token)
 		_ = m.Terminate(token)
 	}
+}
+
+// List returns a snapshot of info for all sessions currently in the store.
+func (m *Manager) List() []SessionInfo {
+	var infos []SessionInfo
+	m.store.Range(func(_ string, sess *Session) bool {
+		infos = append(infos, sess.Info())
+		return true
+	})
+	if infos == nil {
+		infos = []SessionInfo{}
+	}
+	return infos
 }

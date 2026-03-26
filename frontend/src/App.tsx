@@ -1,11 +1,13 @@
 import { useState, useCallback, useEffect } from 'react';
 import { ConnectForm } from './components/ConnectForm';
 import { Terminal } from './components/Terminal';
+import { SessionList } from './components/SessionList';
 import type { AppState } from './types';
 import { saveSession, loadSession, clearSession } from './utils/session';
+import { useConnectionHistory } from './hooks/useConnectionHistory';
 import './App.css';
 
-type ActiveAppState = 'idle' | 'connecting' | 'connected';
+type ActiveAppState = 'idle' | 'connecting' | 'connected' | 'sessions';
 
 interface ConnectionInfo {
   host: string;
@@ -18,8 +20,9 @@ export default function App() {
   const [appState, setAppState] = useState<ActiveAppState>('idle');
   const [sessionToken, setSessionToken] = useState<string | null>(null);
   const [connectionInfo, setConnectionInfo] = useState<ConnectionInfo | null>(null);
+  const { history, addEntry } = useConnectionHistory();
 
-  // 起動時に localStorage に有効なセッションが残っていれば自動復元
+  // On startup restore any valid session from localStorage.
   useEffect(() => {
     const stored = loadSession();
     if (stored) {
@@ -39,9 +42,10 @@ export default function App() {
       saveSession({ token, expiresAt, host, port, user });
       setSessionToken(token);
       setConnectionInfo({ host, port, user, expiresAt });
+      addEntry(host, port, user);
       setAppState('connected');
     },
-    [],
+    [addEntry],
   );
 
   const handleDisconnect = useCallback(() => {
@@ -53,7 +57,7 @@ export default function App() {
 
   const handleStateChange = useCallback((state: AppState) => {
     if (state === 'idle' || state === 'connecting' || state === 'connected') {
-      setAppState(state);
+      setAppState(state as ActiveAppState);
     }
   }, []);
 
@@ -70,11 +74,27 @@ export default function App() {
     );
   }
 
+  if (appState === 'sessions') {
+    return <SessionList onBack={() => setAppState('idle')} />;
+  }
+
   return (
-    <ConnectForm
-      appState={appState}
-      onConnect={handleConnect}
-      onStateChange={handleStateChange}
-    />
+    <div>
+      <div className="app-topbar">
+        <button
+          className="sessions-btn"
+          onClick={() => setAppState('sessions')}
+          title="View active sessions"
+        >
+          Sessions
+        </button>
+      </div>
+      <ConnectForm
+        appState={appState === 'idle' || appState === 'connecting' ? appState : 'idle'}
+        onConnect={handleConnect}
+        onStateChange={handleStateChange}
+        history={history}
+      />
+    </div>
   );
 }

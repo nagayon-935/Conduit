@@ -1,12 +1,15 @@
 import { useState, type FormEvent } from 'react';
 import { connectToHost } from '../api/connect';
 import type { AppState } from '../types';
+import type { HistoryEntry } from '../hooks/useConnectionHistory';
 import './ConnectForm.css';
 
 interface ConnectFormProps {
   appState: AppState;
   onConnect: (sessionToken: string, expiresAt: string, host: string, port: number, user: string) => void;
   onStateChange: (state: AppState) => void;
+  history?: HistoryEntry[];
+  onSelectHistory?: (entry: HistoryEntry) => void;
 }
 
 interface FormFields {
@@ -29,11 +32,17 @@ function validateForm(fields: FormFields): string | null {
   return null;
 }
 
-export function ConnectForm({ appState, onConnect, onStateChange }: ConnectFormProps) {
+export function ConnectForm({ appState, onConnect, onStateChange, history = [], onSelectHistory }: ConnectFormProps) {
   const [fields, setFields] = useState<FormFields>({ host: '', port: '22', user: '' });
   const [error, setError] = useState<string | null>(null);
 
   const isLoading = appState === 'connecting';
+
+  function handleHistoryClick(entry: HistoryEntry) {
+    setFields({ host: entry.host, port: String(entry.port), user: entry.user });
+    if (error) setError(null);
+    onSelectHistory?.(entry);
+  }
 
   function handleChange(e: React.ChangeEvent<HTMLInputElement>) {
     const { name, value } = e.target;
@@ -147,6 +156,29 @@ export function ConnectForm({ appState, onConnect, onStateChange }: ConnectFormP
         {error && (
           <div className="connect-error" role="alert">
             {error}
+          </div>
+        )}
+
+        {history.length > 0 && (
+          <div className="history-section">
+            <p className="history-label">Recent Connections</p>
+            <ul className="history-list">
+              {history.map((entry, i) => (
+                <li
+                  key={i}
+                  className="history-item"
+                  onClick={() => handleHistoryClick(entry)}
+                  role="button"
+                  tabIndex={0}
+                  onKeyDown={(e) => e.key === 'Enter' && handleHistoryClick(entry)}
+                >
+                  <span className="history-target">
+                    {entry.host}:{entry.port}
+                  </span>
+                  <span className="history-user">as {entry.user}</span>
+                </li>
+              ))}
+            </ul>
           </div>
         )}
       </div>

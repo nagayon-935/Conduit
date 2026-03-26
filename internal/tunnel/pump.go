@@ -11,13 +11,11 @@ import (
 	"github.com/nagayon-935/conduit/internal/session"
 )
 
-// PumpConfig controls timing knobs for the pump goroutines.
 type PumpConfig struct {
-	WriteTimeout        time.Duration // maximum time to block on a WebSocket write
-	BackpressureTimeout time.Duration // maximum time DrainOrDrop waits before dropping
+	WriteTimeout        time.Duration
+	BackpressureTimeout time.Duration
 }
 
-// DefaultPumpConfig returns sensible production defaults.
 func DefaultPumpConfig() PumpConfig {
 	return PumpConfig{
 		WriteTimeout:        10 * time.Second,
@@ -25,7 +23,6 @@ func DefaultPumpConfig() PumpConfig {
 	}
 }
 
-// wsMessage is the JSON envelope used for control frames exchanged over WebSocket.
 type wsMessage struct {
 	Type    string `json:"type"`
 	Cols    uint32 `json:"cols,omitempty"`
@@ -34,23 +31,21 @@ type wsMessage struct {
 }
 
 // StartSessionPumps launches goroutines that live for the entire session lifetime:
-//   - sshToClientPump: SSH stdout → sess.ToClient (runs until SSH closes or session terminates)
+//   - sshToClientPump: SSH stdout → sess.ToClient
+//   - readPump: sess.ToClient → broadcast to all WebSockets
 //   - StartStdinForwarder: sess.FromClient → SSH stdin
 //
-// Call once per session, from handleConnect.
+// Must be called exactly once per session (enforced by sess.StartOnce at call site).
 func StartSessionPumps(ctx context.Context, sess *session.Session, cfg PumpConfig) {
 	go sshToClientPump(ctx, sess, cfg)
+	go readPump(ctx, sess, cfg)
 	StartStdinForwarder(ctx, sess)
 }
 
-// StartPumps launches the WebSocket-facing goroutines that live for one connection:
-//   - readPump:  sess.ToClient → WebSocket write
-//   - writePump: WebSocket read → sess.FromClient
-//
-// Call once per WebSocket connection, from handleTerminal.
-func StartPumps(ctx context.Context, sess *session.Session, cfg PumpConfig) {
-	go readPump(ctx, sess, cfg)
-	go writePump(ctx, sess, cfg)
+// StartConnectionPump launches the writePump for a single WebSocket connection.
+// Must be called once per WebSocket connection from handleTerminal.
+func StartConnectionPump(connID string, ws *websocket.Conn, sess *session.Session, cfg PumpConfig) {
+	go writePump(connID, ws, sess, cfg)
 }
 
 // sshToClientPump reads SSH stdout and pushes bytes into sess.ToClient.
@@ -67,7 +62,6 @@ func sshToClientPump(ctx context.Context, sess *session.Session, cfg PumpConfig)
 			if err != io.EOF {
 				slog.Error("sshToClientPump: read error", "error", err)
 			}
-			// SSH session ended – signal session to close.
 			sess.Close()
 			return
 		}
@@ -81,7 +75,8 @@ func sshToClientPump(ctx context.Context, sess *session.Session, cfg PumpConfig)
 	}
 }
 
-// readPump reads from sess.ToClient and writes to the WebSocket.
+// readPump reads from sess.ToClient and broadcasts to all connected WebSockets.
+// This is a session-level goroutine – runs until the session terminates.
 func readPump(ctx context.Context, sess *session.Session, cfg PumpConfig) {
 	for {
 		select {
@@ -93,43 +88,21 @@ func readPump(ctx context.Context, sess *session.Session, cfg PumpConfig) {
 			if !ok {
 				return
 			}
-			ws := sess.GetWebSocket()
-			if ws == nil {
-				// No WebSocket attached right now – discard; data is already lost.
-				continue
-			}
-			_ = ws.SetWriteDeadline(time.Now().Add(cfg.WriteTimeout))
-			if err := ws.WriteMessage(websocket.BinaryMessage, data); err != nil {
-				slog.Warn("readPump: WebSocket write error", "error", err)
-				sess.DetachWebSocket()
-			}
+			sess.BroadcastToWebSockets(websocket.BinaryMessage, data)
 		}
 	}
 }
 
-// writePump reads WebSocket messages and routes them appropriately.
-// Control messages (JSON with "type") are handled inline; raw input goes to SSH stdin via sess.FromClient.
-func writePump(ctx context.Context, sess *session.Session, cfg PumpConfig) {
+// writePump reads WebSocket messages and routes them for a single connection.
+// This is a connection-level goroutine – exits when the WebSocket closes.
+// It calls sess.RemoveWebSocket(connID) on exit via defer.
+func writePump(connID string, ws *websocket.Conn, sess *session.Session, cfg PumpConfig) {
+	defer sess.RemoveWebSocket(connID)
 	for {
 		select {
-		case <-ctx.Done():
-			return
 		case <-sess.Done():
 			return
 		default:
-		}
-
-		ws := sess.GetWebSocket()
-		if ws == nil {
-			// Wait a moment before retrying so we don't spin.
-			select {
-			case <-ctx.Done():
-				return
-			case <-sess.Done():
-				return
-			case <-time.After(200 * time.Millisecond):
-			}
-			continue
 		}
 
 		msgType, msg, err := ws.ReadMessage()
@@ -137,26 +110,22 @@ func writePump(ctx context.Context, sess *session.Session, cfg PumpConfig) {
 			if websocket.IsUnexpectedCloseError(err, websocket.CloseGoingAway, websocket.CloseNormalClosure) {
 				slog.Warn("writePump: WebSocket closed unexpectedly", "error", err)
 			}
-			sess.DetachWebSocket()
-			continue
+			return
 		}
 
-		// Text messages are always JSON control frames.
 		if msgType == websocket.TextMessage {
-			handleControlMessage(sess, msg, cfg)
+			handleControlMessage(ws, sess, msg, cfg)
 			continue
 		}
-
-		// Binary messages are raw terminal input, forwarded directly to SSH stdin.
 		DrainOrDrop(sess.FromClient, msg, cfg.BackpressureTimeout)
 	}
 }
 
 // handleControlMessage parses a JSON control frame and acts on it.
-func handleControlMessage(sess *session.Session, msg []byte, cfg PumpConfig) {
+// ws is the specific connection that sent the frame (for ping→pong responses).
+func handleControlMessage(ws *websocket.Conn, sess *session.Session, msg []byte, cfg PumpConfig) {
 	var frame wsMessage
 	if err := json.Unmarshal(msg, &frame); err != nil {
-		// Not JSON – treat as terminal input.
 		DrainOrDrop(sess.FromClient, msg, cfg.BackpressureTimeout)
 		return
 	}
@@ -164,13 +133,9 @@ func handleControlMessage(sess *session.Session, msg []byte, cfg PumpConfig) {
 	switch frame.Type {
 	case "ping":
 		pong, _ := json.Marshal(wsMessage{Type: "pong"})
-		ws := sess.GetWebSocket()
-		if ws != nil {
-			_ = ws.SetWriteDeadline(time.Now().Add(cfg.WriteTimeout))
-			if err := ws.WriteMessage(websocket.TextMessage, pong); err != nil {
-				slog.Warn("handleControlMessage: pong write error", "error", err)
-				sess.DetachWebSocket()
-			}
+		_ = ws.SetWriteDeadline(time.Now().Add(cfg.WriteTimeout))
+		if err := ws.WriteMessage(websocket.TextMessage, pong); err != nil {
+			slog.Warn("handleControlMessage: pong write error", "error", err)
 		}
 	case "resize":
 		ws := WindowSize{Cols: frame.Cols, Rows: frame.Rows}
@@ -182,8 +147,7 @@ func handleControlMessage(sess *session.Session, msg []byte, cfg PumpConfig) {
 	}
 }
 
-// stdinForwarder reads from sess.FromClient and writes to SSH stdin.
-// This goroutine is started once per session by the terminal handler.
+// StartStdinForwarder reads from sess.FromClient and writes to SSH stdin.
 func StartStdinForwarder(ctx context.Context, sess *session.Session) {
 	go func() {
 		for {

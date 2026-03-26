@@ -16,7 +16,7 @@ func testConfig() *config.Config {
 
 // newTestSession builds a minimal Session with the given token (no real SSH client/session).
 func newTestSession(token string) *Session {
-	return NewSession(token, nil, nil, nil, nil)
+	return NewSession(token, "", 0, "", nil, nil, nil, nil)
 }
 
 func TestSessionManager_CreateAndGet(t *testing.T) {
@@ -56,8 +56,8 @@ func TestSessionManager_Attach(t *testing.T) {
 		t.Fatalf("Create: %v", err)
 	}
 
-	// Attach nil WebSocket – SetWebSocket(nil) is valid and simply records nil.
-	got, err := m.Attach("tok-attach", nil)
+	// Attach nil WebSocket – AddWebSocket(nil) is valid and simply records nil.
+	got, _, err := m.Attach("tok-attach", "conn1", nil)
 	if err != nil {
 		t.Fatalf("Attach: %v", err)
 	}
@@ -78,7 +78,7 @@ func TestSessionManager_AttachExpiredSession(t *testing.T) {
 		t.Fatalf("Create: %v", err)
 	}
 
-	_, err := m.Attach("tok-expired", nil)
+	_, _, err := m.Attach("tok-expired", "conn1", nil)
 	if err == nil {
 		t.Fatal("expected error for expired session, got nil")
 	}
@@ -153,10 +153,10 @@ func TestSessionManager_GracePeriodReconnect(t *testing.T) {
 	}
 
 	// Attach then detach (simulate disconnect).
-	if _, err := m.Attach("tok-grace", nil); err != nil {
+	if _, _, err := m.Attach("tok-grace", "conn1", nil); err != nil {
 		t.Fatalf("Attach: %v", err)
 	}
-	sess.DetachWebSocket()
+	sess.RemoveWebSocket("conn1")
 
 	// Verify the session is still in the store (grace period hasn't elapsed).
 	if _, err := m.Get("tok-grace"); err != nil {
@@ -164,7 +164,7 @@ func TestSessionManager_GracePeriodReconnect(t *testing.T) {
 	}
 
 	// Reconnect before grace period expires.
-	got, err := m.Attach("tok-grace", nil)
+	got, _, err := m.Attach("tok-grace", "conn2", nil)
 	if err != nil {
 		t.Fatalf("second Attach (reconnect): %v", err)
 	}

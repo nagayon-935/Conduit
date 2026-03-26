@@ -43,6 +43,7 @@ func (h *Handler) Routes() http.Handler {
 	mux.HandleFunc("POST /api/connect", h.handleConnect)
 	mux.HandleFunc("GET /ws", h.handleTerminal)
 	mux.HandleFunc("GET /healthz", h.handleHealth)
+	mux.HandleFunc("GET /api/sessions", h.handleListSessions)
 	return corsMiddleware(loggingMiddleware(mux))
 }
 

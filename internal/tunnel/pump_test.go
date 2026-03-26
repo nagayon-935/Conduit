@@ -250,7 +250,7 @@ func TestStartPumps_SSHToWebSocket(t *testing.T) {
 	stdoutRead, stdoutWrite := io.Pipe()
 
 	// NewSession wires up the done channel and buffered channels.
-	realSess := session.NewSession("pump-test", nil, nil, nil, stdoutRead)
+	realSess := session.NewSession("pump-test", "", 0, "", nil, nil, nil, stdoutRead)
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
@@ -287,7 +287,7 @@ func TestStartPumps_WebSocketToSSH(t *testing.T) {
 	stdinRead, stdinWrite := io.Pipe()
 
 	// Build session with the pipe write-end as Stdin.
-	realSess := session.NewSession("forwarder-test", nil, nil, stdinWrite, nil)
+	realSess := session.NewSession("forwarder-test", "", 0, "", nil, nil, stdinWrite, nil)
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
@@ -344,7 +344,7 @@ func TestStartStdinForwarder_StopsOnContextCancel(t *testing.T) {
 	t.Parallel()
 
 	_, stdinWrite := io.Pipe()
-	realSess := session.NewSession("cancel-test", nil, nil, stdinWrite, nil)
+	realSess := session.NewSession("cancel-test", "", 0, "", nil, nil, stdinWrite, nil)
 
 	ctx, cancel := context.WithCancel(context.Background())
 	StartStdinForwarder(ctx, realSess)
@@ -363,7 +363,7 @@ func TestStartStdinForwarder_StopsOnSessionClose(t *testing.T) {
 	t.Parallel()
 
 	_, stdinWrite := io.Pipe()
-	realSess := session.NewSession("sess-close-test", nil, nil, stdinWrite, nil)
+	realSess := session.NewSession("sess-close-test", "", 0, "", nil, nil, stdinWrite, nil)
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()

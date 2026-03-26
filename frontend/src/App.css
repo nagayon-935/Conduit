@@ -33,3 +33,28 @@ body {
   display: flex;
   flex-direction: column;
 }
+
+/* Top bar for global actions */
+.app-topbar {
+  position: fixed;
+  top: 12px;
+  right: 16px;
+  z-index: 100;
+}
+
+.sessions-btn {
+  background: rgba(36, 40, 59, 0.9);
+  border: 1px solid #414868;
+  border-radius: 6px;
+  color: #7aa2f7;
+  font-size: 12px;
+  font-weight: 600;
+  padding: 5px 12px;
+  cursor: pointer;
+  transition: background 0.12s ease, border-color 0.12s ease;
+}
+
+.sessions-btn:hover {
+  background: rgba(122, 162, 247, 0.1);
+  border-color: #7aa2f7;
+}

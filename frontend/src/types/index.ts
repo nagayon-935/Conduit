@@ -24,3 +24,14 @@ export type WsControlMessage =
   | { type: 'exit' };
 
 export type AppState = 'idle' | 'connecting' | 'connected' | 'disconnected' | 'error';
+
+export interface SessionInfo {
+  token: string;
+  host: string;
+  port: number;
+  user: string;
+  state: 'connected' | 'disconnected' | 'terminated';
+  created_at: string;
+  expires_at: string;
+  ws_count: number;
+}

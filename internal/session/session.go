@@ -1,7 +1,9 @@
 package session
 
 import (
+	"context"
 	"io"
+	"log/slog"
 	"sync"
 	"time"
 
@@ -15,62 +17,78 @@ const (
 	FromClientBufSize = 64
 )
 
-// SessionState describes the lifecycle state of a session.
 type SessionState int
 
 const (
-	// StateConnected means a WebSocket is actively attached.
-	StateConnected SessionState = iota
-	// StateDisconnected means the WebSocket disconnected but the SSH session is still alive within the grace period.
+	StateConnected    SessionState = iota
 	StateDisconnected
-	// StateTerminated means the session has been fully closed.
 	StateTerminated
 )
 
-// Session holds all state for a single terminal session.
+type SessionInfo struct {
+	Token     string    `json:"token"`
+	Host      string    `json:"host"`
+	Port      int       `json:"port"`
+	User      string    `json:"user"`
+	State     string    `json:"state"`
+	CreatedAt time.Time `json:"created_at"`
+	ExpiresAt time.Time `json:"expires_at"`
+	WSCount   int       `json:"ws_count"`
+}
+
 type Session struct {
-	ID         string
-	Token      string
-	CreatedAt  time.Time
-	ExpiresAt  time.Time // deadline after which the session is GC'd
+	Token     string
+	Host      string
+	Port      int
+	User      string
+	CreatedAt time.Time
+	ExpiresAt time.Time
 
 	SSHClient  *ssh.Client
 	SSHSession *ssh.Session
 	Stdin      io.WriteCloser
 	Stdout     io.Reader
 
-	WSConn *websocket.Conn // nil when no WebSocket is attached
+	ToClient   chan []byte
+	FromClient chan []byte
 
-	ToClient   chan []byte // SSH stdout → WebSocket
-	FromClient chan []byte // WebSocket input → SSH stdin
+	State  SessionState
+	done   chan struct{}
+	ctx    context.Context
+	cancel context.CancelFunc
 
-	State        SessionState
-	done         chan struct{}
-	detachNotify chan struct{} // closed when the current WebSocket is detached
-	mu           sync.RWMutex
+	wsConns   map[string]*websocket.Conn
+	wsNotify  map[string]chan struct{}
+	pumpsOnce sync.Once
+
+	mu sync.RWMutex
 }
 
-// NewSession constructs a Session in StateConnected state with buffered channels.
-func NewSession(token string, client *ssh.Client, sshSess *ssh.Session, stdin io.WriteCloser, stdout io.Reader) *Session {
+func NewSession(token, host string, port int, user string, client *ssh.Client, sshSess *ssh.Session, stdin io.WriteCloser, stdout io.Reader) *Session {
 	now := time.Now()
+	ctx, cancel := context.WithCancel(context.Background())
 	return &Session{
-		Token:        token,
-		CreatedAt:    now,
-		ExpiresAt:    now.Add(GracePeriod),
-		SSHClient:    client,
-		SSHSession:   sshSess,
-		Stdin:        stdin,
-		Stdout:       stdout,
-		ToClient:     make(chan []byte, ToClientBufSize),
-		FromClient:   make(chan []byte, FromClientBufSize),
-		State:        StateConnected,
-		done:         make(chan struct{}),
-		detachNotify: make(chan struct{}),
+		Token:      token,
+		Host:       host,
+		Port:       port,
+		User:       user,
+		CreatedAt:  now,
+		ExpiresAt:  now.Add(GracePeriod),
+		SSHClient:  client,
+		SSHSession: sshSess,
+		Stdin:      stdin,
+		Stdout:     stdout,
+		ToClient:   make(chan []byte, ToClientBufSize),
+		FromClient: make(chan []byte, FromClientBufSize),
+		State:      StateDisconnected,
+		done:       make(chan struct{}),
+		ctx:        ctx,
+		cancel:     cancel,
+		wsConns:    make(map[string]*websocket.Conn),
+		wsNotify:   make(map[string]chan struct{}),
 	}
 }
 
-// Close terminates the session: it closes the done channel, SSH session and SSH client.
-// Idempotent – safe to call multiple times.
 func (s *Session) Close() {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -80,12 +98,12 @@ func (s *Session) Close() {
 	}
 	s.State = StateTerminated
 
-	// Signal pumps to exit.
 	select {
 	case <-s.done:
 	default:
 		close(s.done)
 	}
+	s.cancel()
 
 	if s.SSHSession != nil {
 		_ = s.SSHSession.Close()
@@ -95,8 +113,6 @@ func (s *Session) Close() {
 	}
 }
 
-// IsExpired reports whether the session's grace period has elapsed.
-// An actively connected session (StateConnected) is never considered expired.
 func (s *Session) IsExpired() bool {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
@@ -106,53 +122,126 @@ func (s *Session) IsExpired() bool {
 	return time.Now().After(s.ExpiresAt)
 }
 
-// SetWebSocket attaches a WebSocket connection and transitions the session to StateConnected.
-// It resets the expiry deadline and creates a fresh detach notification channel.
-func (s *Session) SetWebSocket(ws *websocket.Conn) {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	s.WSConn = ws
-	s.State = StateConnected
-	s.ExpiresAt = time.Now().Add(GracePeriod)
-	s.detachNotify = make(chan struct{}) // fresh channel for this connection
+func (s *Session) Done() <-chan struct{} {
+	return s.done
 }
 
-// DetachWebSocket removes the WebSocket reference and transitions the session to StateDisconnected,
-// starting the grace period countdown. It also closes the detach notification channel so the
-// current handleTerminal goroutine can exit cleanly.
-func (s *Session) DetachWebSocket() {
+func (s *Session) Context() context.Context {
+	return s.ctx
+}
+
+func (s *Session) StartOnce(fn func()) {
+	s.pumpsOnce.Do(fn)
+}
+
+func (s *Session) AddWebSocket(connID string, ws *websocket.Conn) <-chan struct{} {
 	s.mu.Lock()
-	ch := s.detachNotify
-	s.detachNotify = nil
-	s.WSConn = nil
-	if s.State != StateTerminated {
+	defer s.mu.Unlock()
+
+	notify := make(chan struct{})
+	s.wsConns[connID] = ws
+	s.wsNotify[connID] = notify
+	s.State = StateConnected
+	s.ExpiresAt = time.Now().Add(GracePeriod)
+	return notify
+}
+
+func (s *Session) RemoveWebSocket(connID string) {
+	s.mu.Lock()
+	notify := s.wsNotify[connID]
+	delete(s.wsConns, connID)
+	delete(s.wsNotify, connID)
+	if len(s.wsConns) == 0 && s.State != StateTerminated {
 		s.State = StateDisconnected
 		s.ExpiresAt = time.Now().Add(GracePeriod)
 	}
 	s.mu.Unlock()
 
-	if ch != nil {
-		close(ch)
+	if notify != nil {
+		close(notify)
+	}
+	slog.Debug("websocket removed from session", "connID", connID)
+}
+
+func (s *Session) BroadcastToWebSockets(msgType int, data []byte) {
+	s.mu.RLock()
+	conns := make([]*websocket.Conn, 0, len(s.wsConns))
+	for _, ws := range s.wsConns {
+		conns = append(conns, ws)
+	}
+	s.mu.RUnlock()
+
+	for _, ws := range conns {
+		if err := ws.WriteMessage(msgType, data); err != nil {
+			slog.Debug("BroadcastToWebSockets: write error", "error", err)
+		}
 	}
 }
 
-// WebSocketDetached returns a channel that is closed when the current WebSocket is detached.
-// The caller must capture this immediately after Attach() and hold onto it.
-func (s *Session) WebSocketDetached() <-chan struct{} {
+func (s *Session) ActiveWSCount() int {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
-	return s.detachNotify
+	return len(s.wsConns)
 }
 
-// Done returns a channel that is closed when the session is terminated.
-func (s *Session) Done() <-chan struct{} {
-	return s.done
+func (s *Session) Info() SessionInfo {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+
+	stateStr := "connected"
+	switch s.State {
+	case StateDisconnected:
+		stateStr = "disconnected"
+	case StateTerminated:
+		stateStr = "terminated"
+	}
+
+	tok := s.Token
+	if len(tok) > 8 {
+		tok = tok[:8] + "..."
+	}
+
+	return SessionInfo{
+		Token:     tok,
+		Host:      s.Host,
+		Port:      s.Port,
+		User:      s.User,
+		State:     stateStr,
+		CreatedAt: s.CreatedAt,
+		ExpiresAt: s.ExpiresAt,
+		WSCount:   len(s.wsConns),
+	}
 }
 
-// GetWebSocket returns the currently attached WebSocket connection, or nil if none is attached.
-// The caller must not retain the reference beyond a single write/read call.
+// ── Backward-compatibility aliases ───────────────────────────────────────────
+
+const legacyConnID = "_default"
+
+func (s *Session) SetWebSocket(ws *websocket.Conn) {
+	s.AddWebSocket(legacyConnID, ws)
+}
+
+func (s *Session) DetachWebSocket() {
+	s.RemoveWebSocket(legacyConnID)
+}
+
 func (s *Session) GetWebSocket() *websocket.Conn {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
-	return s.WSConn
+	for _, ws := range s.wsConns {
+		return ws
+	}
+	return nil
+}
+
+func (s *Session) WebSocketDetached() <-chan struct{} {
+	s.mu.RLock()
+	ch, ok := s.wsNotify[legacyConnID]
+	s.mu.RUnlock()
+	if ok {
+		return ch
+	}
+	closed := make(chan struct{})
+	close(closed)
+	return closed
 }
