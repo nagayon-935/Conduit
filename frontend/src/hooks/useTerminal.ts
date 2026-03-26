@@ -4,56 +4,36 @@ import { FitAddon } from '@xterm/addon-fit';
 import { WebglAddon } from '@xterm/addon-webgl';
 import { SearchAddon } from '@xterm/addon-search';
 import { themes, defaultThemeKey, type Theme } from '../themes';
-
-const FONT_SIZE_KEY = 'conduit-fontSize';
-const THEME_KEY = 'conduit-theme';
+import { readJSON, writeJSON } from '../utils/storage';
+import {
+  STORAGE_KEYS,
+  FONT_SIZE_MIN,
+  FONT_SIZE_MAX,
+  FONT_SIZE_DEFAULT,
+} from '../constants';
 
 function readFontSize(): number {
-  try {
-    const raw = localStorage.getItem(FONT_SIZE_KEY);
-    if (raw) {
-      const n = parseInt(raw, 10);
-      if (!isNaN(n) && n >= 8 && n <= 32) return n;
-    }
-  } catch {
-    // ignore
-  }
-  return 14;
+  const n = readJSON<number>(STORAGE_KEYS.FONT_SIZE, FONT_SIZE_DEFAULT);
+  return (n >= FONT_SIZE_MIN && n <= FONT_SIZE_MAX) ? n : FONT_SIZE_DEFAULT;
 }
 
 function readThemeKey(): string {
-  try {
-    const raw = localStorage.getItem(THEME_KEY);
-    if (raw && themes[raw]) return raw;
-  } catch {
-    // ignore
-  }
-  return defaultThemeKey;
+  const key = readJSON<string>(STORAGE_KEYS.THEME, defaultThemeKey);
+  return themes[key] ? key : defaultThemeKey;
 }
 
-function themeToXterm(t: Theme) {
-  return {
-    background: t.background,
-    foreground: t.foreground,
-    cursor: t.cursor,
-    selectionBackground: t.selectionBackground,
-    black: t.black,
-    red: t.red,
-    green: t.green,
-    yellow: t.yellow,
-    blue: t.blue,
-    magenta: t.magenta,
-    cyan: t.cyan,
-    white: t.white,
-    brightBlack: t.brightBlack,
-    brightRed: t.brightRed,
-    brightGreen: t.brightGreen,
-    brightYellow: t.brightYellow,
-    brightBlue: t.brightBlue,
-    brightMagenta: t.brightMagenta,
-    brightCyan: t.brightCyan,
-    brightWhite: t.brightWhite,
-  };
+/**
+ * Theme objects already match xterm's ITheme shape — destructure only
+ * the xterm-relevant fields so extra properties (like `name`) are excluded.
+ */
+function themeToXterm({ background, foreground, cursor, selectionBackground,
+  black, red, green, yellow, blue, magenta, cyan, white,
+  brightBlack, brightRed, brightGreen, brightYellow, brightBlue,
+  brightMagenta, brightCyan, brightWhite }: Theme) {
+  return { background, foreground, cursor, selectionBackground,
+    black, red, green, yellow, blue, magenta, cyan, white,
+    brightBlack, brightRed, brightGreen, brightYellow, brightBlue,
+    brightMagenta, brightCyan, brightWhite };
 }
 
 interface UseTerminalOptions {
@@ -181,15 +161,11 @@ export function useTerminal(options: UseTerminalOptions = {}): UseTerminalReturn
     const term = terminalInstanceRef.current;
     const fit = fitAddonInstanceRef.current;
     if (!term || !fit) return;
-    const current = term.options.fontSize ?? 14;
-    const next = Math.min(32, Math.max(8, current + delta));
+    const current = term.options.fontSize ?? FONT_SIZE_DEFAULT;
+    const next = Math.min(FONT_SIZE_MAX, Math.max(FONT_SIZE_MIN, current + delta));
     term.options.fontSize = next;
     fit.fit();
-    try {
-      localStorage.setItem(FONT_SIZE_KEY, String(next));
-    } catch {
-      // ignore
-    }
+    writeJSON(STORAGE_KEYS.FONT_SIZE, next);
   }, []);
 
   const setTheme = useCallback((key: string) => {
@@ -201,11 +177,7 @@ export function useTerminal(options: UseTerminalOptions = {}): UseTerminalReturn
     }
     currentThemeKeyRef.current = resolvedKey;
     setCurrentThemeKey(resolvedKey);
-    try {
-      localStorage.setItem(THEME_KEY, resolvedKey);
-    } catch {
-      // ignore
-    }
+    writeJSON(STORAGE_KEYS.THEME, resolvedKey);
   }, []);
 
   const search = useCallback(
