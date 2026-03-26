@@ -13,6 +13,12 @@ import (
 	"github.com/nagayon-935/conduit/internal/vault"
 )
 
+const (
+	contentTypeJSON    = "application/json"
+	wsReadBufferSize   = 4096
+	wsWriteBufferSize  = 4096
+)
+
 // Handler is the root HTTP handler for the Conduit API.
 type Handler struct {
 	config   *config.Config
@@ -34,8 +40,8 @@ func NewHandler(cfg *config.Config, sm *session.Manager, vc vault.VaultClient, d
 		upgrader: websocket.Upgrader{
 			// Allow all origins for development; tighten for production.
 			CheckOrigin:     func(r *http.Request) bool { return true },
-			ReadBufferSize:  4096,
-			WriteBufferSize: 4096,
+			ReadBufferSize:  wsReadBufferSize,
+			WriteBufferSize: wsWriteBufferSize,
 		},
 	}
 }
@@ -54,14 +60,14 @@ func (h *Handler) Routes() http.Handler {
 
 // handleHealth is a simple liveness probe.
 func (h *Handler) handleHealth(w http.ResponseWriter, r *http.Request) {
-	w.Header().Set("Content-Type", "application/json")
+	w.Header().Set("Content-Type", contentTypeJSON)
 	w.WriteHeader(http.StatusOK)
 	_, _ = w.Write([]byte(`{"status":"ok"}`))
 }
 
 // apiError writes a structured JSON error response.
 func apiError(w http.ResponseWriter, code int, message, errCode string) {
-	w.Header().Set("Content-Type", "application/json")
+	w.Header().Set("Content-Type", contentTypeJSON)
 	w.WriteHeader(code)
 	body, _ := json.Marshal(map[string]string{
 		"error": message,
@@ -72,7 +78,7 @@ func apiError(w http.ResponseWriter, code int, message, errCode string) {
 
 // writeJSON marshals v and writes it as a JSON response.
 func writeJSON(w http.ResponseWriter, code int, v any) {
-	w.Header().Set("Content-Type", "application/json")
+	w.Header().Set("Content-Type", contentTypeJSON)
 	w.WriteHeader(code)
 	if err := json.NewEncoder(w).Encode(v); err != nil {
 		slog.Error("writeJSON: encode failed", "error", err)
