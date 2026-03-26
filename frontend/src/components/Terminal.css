@@ -1,0 +1,146 @@
+/* Terminal wrapper — fills the entire viewport */
+.terminal-wrapper {
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+  background: #1a1b26;
+  overflow: hidden;
+}
+
+/* Status bar */
+.terminal-status-bar {
+  flex-shrink: 0;
+  height: 40px;
+  background: #24283b;
+  border-bottom: 1px solid #414868;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 16px;
+  gap: 12px;
+  box-sizing: border-box;
+}
+
+.status-left {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-width: 0;
+  overflow: hidden;
+}
+
+.status-indicator {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  white-space: nowrap;
+}
+
+.status-dot {
+  color: #9ece6a;
+  font-size: 10px;
+  line-height: 1;
+  animation: pulse 2s ease-in-out infinite;
+}
+
+@keyframes pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.5; }
+}
+
+.status-label {
+  font-size: 12px;
+  font-weight: 600;
+  color: #9ece6a;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.status-divider {
+  width: 1px;
+  height: 16px;
+  background: #414868;
+  flex-shrink: 0;
+}
+
+.status-info {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+  color: #c0caf5;
+  font-family: 'Menlo', 'Monaco', 'Courier New', monospace;
+  min-width: 0;
+  overflow: hidden;
+}
+
+.status-host {
+  color: #7aa2f7;
+  font-weight: 600;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.status-sep {
+  color: #414868;
+}
+
+.status-user {
+  color: #9ece6a;
+  white-space: nowrap;
+}
+
+.status-expires {
+  color: #565f89;
+  font-size: 11px;
+  white-space: nowrap;
+}
+
+/* Disconnect button */
+.disconnect-btn {
+  flex-shrink: 0;
+  padding: 5px 14px;
+  background: transparent;
+  border: 1px solid #414868;
+  border-radius: 5px;
+  color: #565f89;
+  font-size: 12px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: border-color 0.15s ease, color 0.15s ease, background 0.15s ease;
+  white-space: nowrap;
+}
+
+.disconnect-btn:hover {
+  border-color: #f7768e;
+  color: #f7768e;
+  background: rgba(247, 118, 142, 0.08);
+}
+
+.disconnect-btn:active {
+  background: rgba(247, 118, 142, 0.15);
+}
+
+/* Terminal container */
+.terminal-container {
+  flex: 1;
+  overflow: hidden;
+  background: #1a1b26;
+}
+
+/* xterm.js overrides */
+.terminal-container .xterm {
+  height: 100%;
+  padding: 4px 8px;
+  box-sizing: border-box;
+}
+
+.terminal-container .xterm-viewport {
+  overflow-y: auto !important;
+}
+
+.terminal-container .xterm-screen {
+  /* Ensure the canvas fills the container */
+  width: 100% !important;
+}

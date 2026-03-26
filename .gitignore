@@ -1,0 +1,13 @@
+# macOS
+.DS_Store
+
+# Claude
+.claude
+
+# Go
+bin/
+coverage.out
+
+# Node
+frontend/node_modules/
+frontend/dist/
