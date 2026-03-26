@@ -1,7 +1,7 @@
 import { useState, type FormEvent } from 'react';
 import { connectToHost } from '../api/connect';
 import type { AppState } from '../types';
-import type { HistoryEntry } from '../hooks/useConnectionHistory';
+import type { HistoryEntry } from '../types';
 import { useProfiles } from '../hooks/useProfiles';
 import './ConnectForm.css';
 
