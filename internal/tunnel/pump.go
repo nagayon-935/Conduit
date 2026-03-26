@@ -48,9 +48,11 @@ func StartConnectionPump(connID string, ws *websocket.Conn, sess *session.Sessio
 	go writePump(connID, ws, sess, cfg)
 }
 
+const sshReadBufSize = 32 * 1024 // 32 KB
+
 // sshToClientPump reads SSH stdout and pushes bytes into sess.ToClient.
 func sshToClientPump(ctx context.Context, sess *session.Session, cfg PumpConfig) {
-	buf := make([]byte, 32*1024)
+	buf := make([]byte, sshReadBufSize)
 	for {
 		n, err := sess.Stdout.Read(buf)
 		if n > 0 {
