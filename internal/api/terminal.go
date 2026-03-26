@@ -38,22 +38,29 @@ func (h *Handler) handleTerminal(w http.ResponseWriter, r *http.Request) {
 
 	slog.Info("terminal connected", "token", token)
 
+	// Capture the detach channel before starting pumps.
+	// Closed by DetachWebSocket() when this WebSocket connection is severed.
+	detached := sess.WebSocketDetached()
+
 	ctx, cancel := context.WithCancel(r.Context())
 	defer cancel()
 
-	// Start the stdin forwarder (FromClient → SSH stdin).
-	tunnel.StartStdinForwarder(ctx, sess)
-
-	// Start SSH stdout → ToClient pump and WebSocket read/write pumps.
+	// Start connection-scoped pumps (readPump + writePump) for this WebSocket.
+	// Session-scoped pumps (sshToClientPump, stdinForwarder) were started in handleConnect.
 	tunnel.StartPumps(ctx, sess, tunnel.DefaultPumpConfig())
 
-	// Block until the session terminates or the request context is cancelled.
-	// The pumps and forwarder are all running in goroutines; we just wait here.
+	// Block until:
+	//   (a) the SSH session terminates → send exit frame and return
+	//   (b) the WebSocket is detached (browser closed) → return; SSH session stays alive
+	//   (c) the HTTP request context is cancelled
 	select {
 	case <-ctx.Done():
 	case <-sess.Done():
 		// SSH session ended — notify client so it doesn't attempt reconnection.
 		sendWSExit(sess.GetWebSocket())
+	case <-detached:
+		// WebSocket disconnected; handler exits so pumps stop.
+		// SSH session remains alive within the grace period.
 	}
 
 	slog.Info("terminal disconnected", "token", token)

@@ -1,6 +1,7 @@
 package api
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"log/slog"
@@ -9,6 +10,7 @@ import (
 
 	"github.com/nagayon-935/conduit/internal/session"
 	"github.com/nagayon-935/conduit/internal/sshconn"
+	"github.com/nagayon-935/conduit/internal/tunnel"
 	pkgtoken "github.com/nagayon-935/conduit/pkg/token"
 )
 
@@ -92,6 +94,10 @@ func (h *Handler) handleConnect(w http.ResponseWriter, r *http.Request) {
 		apiError(w, http.StatusInternalServerError, "session creation failed", "SESSION_ERROR")
 		return
 	}
+
+	// Start session-scoped goroutines (live for the entire SSH session lifetime).
+	// These run independently of WebSocket connections, enabling the grace period.
+	tunnel.StartSessionPumps(context.Background(), sess, tunnel.DefaultPumpConfig())
 
 	slog.Info("session created successfully", "token", token, "host", req.Host)
 

@@ -33,13 +33,24 @@ type wsMessage struct {
 	Message string `json:"message,omitempty"`
 }
 
-// StartPumps launches the readPump and writePump goroutines for sess.
-// readPump: SSH stdout → sess.ToClient → WebSocket write
-// writePump: WebSocket read → sess.FromClient → SSH stdin
+// StartSessionPumps launches goroutines that live for the entire session lifetime:
+//   - sshToClientPump: SSH stdout → sess.ToClient (runs until SSH closes or session terminates)
+//   - StartStdinForwarder: sess.FromClient → SSH stdin
+//
+// Call once per session, from handleConnect.
+func StartSessionPumps(ctx context.Context, sess *session.Session, cfg PumpConfig) {
+	go sshToClientPump(ctx, sess, cfg)
+	StartStdinForwarder(ctx, sess)
+}
+
+// StartPumps launches the WebSocket-facing goroutines that live for one connection:
+//   - readPump:  sess.ToClient → WebSocket write
+//   - writePump: WebSocket read → sess.FromClient
+//
+// Call once per WebSocket connection, from handleTerminal.
 func StartPumps(ctx context.Context, sess *session.Session, cfg PumpConfig) {
 	go readPump(ctx, sess, cfg)
 	go writePump(ctx, sess, cfg)
-	go sshToClientPump(ctx, sess, cfg)
 }
 
 // sshToClientPump reads SSH stdout and pushes bytes into sess.ToClient.

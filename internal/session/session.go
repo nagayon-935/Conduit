@@ -44,26 +44,28 @@ type Session struct {
 	ToClient   chan []byte // SSH stdout → WebSocket
 	FromClient chan []byte // WebSocket input → SSH stdin
 
-	State SessionState
-	done  chan struct{}
-	mu    sync.RWMutex
+	State        SessionState
+	done         chan struct{}
+	detachNotify chan struct{} // closed when the current WebSocket is detached
+	mu           sync.RWMutex
 }
 
 // NewSession constructs a Session in StateConnected state with buffered channels.
 func NewSession(token string, client *ssh.Client, sshSess *ssh.Session, stdin io.WriteCloser, stdout io.Reader) *Session {
 	now := time.Now()
 	return &Session{
-		Token:      token,
-		CreatedAt:  now,
-		ExpiresAt:  now.Add(GracePeriod),
-		SSHClient:  client,
-		SSHSession: sshSess,
-		Stdin:      stdin,
-		Stdout:     stdout,
-		ToClient:   make(chan []byte, ToClientBufSize),
-		FromClient: make(chan []byte, FromClientBufSize),
-		State:      StateConnected,
-		done:       make(chan struct{}),
+		Token:        token,
+		CreatedAt:    now,
+		ExpiresAt:    now.Add(GracePeriod),
+		SSHClient:    client,
+		SSHSession:   sshSess,
+		Stdin:        stdin,
+		Stdout:       stdout,
+		ToClient:     make(chan []byte, ToClientBufSize),
+		FromClient:   make(chan []byte, FromClientBufSize),
+		State:        StateConnected,
+		done:         make(chan struct{}),
+		detachNotify: make(chan struct{}),
 	}
 }
 
@@ -101,25 +103,41 @@ func (s *Session) IsExpired() bool {
 }
 
 // SetWebSocket attaches a WebSocket connection and transitions the session to StateConnected.
-// It resets the expiry deadline so the client has a fresh grace period window.
+// It resets the expiry deadline and creates a fresh detach notification channel.
 func (s *Session) SetWebSocket(ws *websocket.Conn) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.WSConn = ws
 	s.State = StateConnected
 	s.ExpiresAt = time.Now().Add(GracePeriod)
+	s.detachNotify = make(chan struct{}) // fresh channel for this connection
 }
 
 // DetachWebSocket removes the WebSocket reference and transitions the session to StateDisconnected,
-// starting the grace period countdown.
+// starting the grace period countdown. It also closes the detach notification channel so the
+// current handleTerminal goroutine can exit cleanly.
 func (s *Session) DetachWebSocket() {
 	s.mu.Lock()
-	defer s.mu.Unlock()
+	ch := s.detachNotify
+	s.detachNotify = nil
 	s.WSConn = nil
 	if s.State != StateTerminated {
 		s.State = StateDisconnected
 		s.ExpiresAt = time.Now().Add(GracePeriod)
 	}
+	s.mu.Unlock()
+
+	if ch != nil {
+		close(ch)
+	}
+}
+
+// WebSocketDetached returns a channel that is closed when the current WebSocket is detached.
+// The caller must capture this immediately after Attach() and hold onto it.
+func (s *Session) WebSocketDetached() <-chan struct{} {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	return s.detachNotify
 }
 
 // Done returns a channel that is closed when the session is terminated.
