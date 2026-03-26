@@ -11,6 +11,14 @@ import (
 	"golang.org/x/crypto/ssh"
 )
 
+const (
+	dialTimeout     = 15 * time.Second
+	defaultPTYRows  = 24
+	defaultPTYCols  = 80
+	termBaudRate    = 14400
+	termType        = "xterm-256color"
+)
+
 // ConnectRequest carries all parameters needed to establish an SSH session.
 type ConnectRequest struct {
 	Host        string
@@ -49,7 +57,7 @@ func (d *Dialer) Dial(ctx context.Context, req ConnectRequest) (*ssh.Client, *ss
 		},
 		// In a production environment this should be replaced with a proper host key callback.
 		HostKeyCallback: ssh.InsecureIgnoreHostKey(), //nolint:gosec
-		Timeout:         15 * time.Second,
+		Timeout:         dialTimeout,
 	}
 
 	addr := net.JoinHostPort(req.Host, fmt.Sprintf("%d", req.Port))
@@ -82,35 +90,34 @@ func (d *Dialer) Dial(ctx context.Context, req ConnectRequest) (*ssh.Client, *ss
 		return nil, nil, nil, nil, fmt.Errorf("sshconn: new session: %w", err)
 	}
 
+	// If anything fails after session creation, clean up both session and client.
+	cleanup := func() { sess.Close(); client.Close() }
+
 	// Request PTY with sane defaults.
 	modes := ssh.TerminalModes{
 		ssh.ECHO:          1,
-		ssh.TTY_OP_ISPEED: 14400,
-		ssh.TTY_OP_OSPEED: 14400,
+		ssh.TTY_OP_ISPEED: termBaudRate,
+		ssh.TTY_OP_OSPEED: termBaudRate,
 	}
-	if err := sess.RequestPty("xterm-256color", 24, 80, modes); err != nil {
-		sess.Close()
-		client.Close()
+	if err := sess.RequestPty(termType, defaultPTYRows, defaultPTYCols, modes); err != nil {
+		cleanup()
 		return nil, nil, nil, nil, fmt.Errorf("sshconn: request PTY: %w", err)
 	}
 
 	stdin, err := sess.StdinPipe()
 	if err != nil {
-		sess.Close()
-		client.Close()
+		cleanup()
 		return nil, nil, nil, nil, fmt.Errorf("sshconn: stdin pipe: %w", err)
 	}
 
 	stdout, err := sess.StdoutPipe()
 	if err != nil {
-		sess.Close()
-		client.Close()
+		cleanup()
 		return nil, nil, nil, nil, fmt.Errorf("sshconn: stdout pipe: %w", err)
 	}
 
 	if err := sess.Shell(); err != nil {
-		sess.Close()
-		client.Close()
+		cleanup()
 		return nil, nil, nil, nil, fmt.Errorf("sshconn: start shell: %w", err)
 	}
 
