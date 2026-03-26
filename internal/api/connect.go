@@ -14,6 +14,11 @@ import (
 	pkgtoken "github.com/nagayon-935/conduit/pkg/token"
 )
 
+const (
+	timeFormatUTC = "2006-01-02T15:04:05Z"
+	maxPort       = 65535
+)
+
 // ConnectRequest is the JSON body for POST /api/connect.
 type ConnectRequest struct {
 	Host string `json:"host"`
@@ -109,7 +114,7 @@ func (h *Handler) handleConnect(w http.ResponseWriter, r *http.Request) {
 
 	writeJSON(w, http.StatusCreated, ConnectResponse{
 		SessionToken: token,
-		ExpiresAt:    sess.ExpiresAt.UTC().Format("2006-01-02T15:04:05Z"),
+		ExpiresAt:    sess.ExpiresAt.UTC().Format(timeFormatUTC),
 		Message:      fmt.Sprintf("SSH session established to %s:%d", req.Host, req.Port),
 	})
 }
@@ -119,7 +124,7 @@ func validateConnectRequest(req ConnectRequest) error {
 	if strings.TrimSpace(req.Host) == "" {
 		return fmt.Errorf("host is required")
 	}
-	if req.Port <= 0 || req.Port > 65535 {
+	if req.Port <= 0 || req.Port > maxPort {
 		return fmt.Errorf("port must be between 1 and 65535")
 	}
 	if strings.TrimSpace(req.User) == "" {
