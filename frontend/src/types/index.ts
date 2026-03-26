@@ -28,6 +28,32 @@ export type AppState = 'idle' | 'connecting' | 'connected' | 'disconnected' | 'e
 /** Terminal pane layout: single / side-by-side / top-bottom / 2×2 grid */
 export type LayoutType = '1' | '2v' | '2h' | '4';
 
+// ── Frontend-only domain types ───────────────────────────────────────────
+
+export interface Profile {
+  id: string;
+  name: string;
+  host: string;
+  port: number;
+  user: string;
+  createdAt: string;
+}
+
+export interface HistoryEntry {
+  host: string;
+  port: number;
+  user: string;
+  connectedAt: string;
+}
+
+export interface StoredSession {
+  token: string;
+  expiresAt: string;
+  host: string;
+  port: number;
+  user: string;
+}
+
 export interface SessionInfo {
   token: string;
   host: string;
