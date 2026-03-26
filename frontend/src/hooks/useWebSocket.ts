@@ -2,6 +2,12 @@ import { useRef, useState, useCallback, useEffect } from 'react';
 import type { Terminal } from '@xterm/xterm';
 import type { FitAddon } from '@xterm/addon-fit';
 import type { WsControlMessage } from '../types';
+import {
+  ANSI,
+  HEARTBEAT_INTERVAL_MS,
+  RECONNECT_BASE_DELAY_MS,
+  MAX_RECONNECT_ATTEMPTS,
+} from '../constants';
 
 interface UseWebSocketOptions {
   token: string;
@@ -16,9 +22,6 @@ interface UseWebSocketReturn {
   disconnect: () => void;
   isConnected: boolean;
 }
-
-const MAX_RECONNECT_ATTEMPTS = 5;
-const RECONNECT_BASE_DELAY_MS = 2000;
 
 function buildWsUrl(token: string): string {
   const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
@@ -67,7 +70,7 @@ export function useWebSocket(options: UseWebSocketOptions): UseWebSocketReturn {
       if (ws.readyState === WebSocket.OPEN) {
         ws.send(JSON.stringify({ type: 'ping' } satisfies WsControlMessage));
       }
-    }, 30000);
+    }, HEARTBEAT_INTERVAL_MS);
   }, [clearHeartbeat]);
 
   const connectInternal = useCallback((isReconnect: boolean) => {
@@ -92,7 +95,7 @@ export function useWebSocket(options: UseWebSocketOptions): UseWebSocketReturn {
       startHeartbeat(ws);
 
       if (isReconnect) {
-        terminalRef.current?.writeln('\r\n\x1b[32m[Conduit] Reconnected.\x1b[0m');
+        terminalRef.current?.writeln(ANSI.RECONNECTED);
       }
 
       // Send initial terminal size
@@ -145,7 +148,7 @@ export function useWebSocket(options: UseWebSocketOptions): UseWebSocketReturn {
               case 'exit':
                 // SSH session ended on the server side — close without reconnecting
                 isIntentionalCloseRef.current = true;
-                terminalRef.current?.writeln('\r\n\x1b[90m[Conduit] Session ended.\x1b[0m');
+                terminalRef.current?.writeln(ANSI.SESSION_ENDED);
                 ws.close();
                 return;
               case 'resize':
@@ -182,13 +185,13 @@ export function useWebSocket(options: UseWebSocketOptions): UseWebSocketReturn {
         reconnectAttemptsRef.current += 1;
         const delay = RECONNECT_BASE_DELAY_MS * Math.pow(2, attempt);
 
-        terminalRef.current?.writeln('\r\n\x1b[33m[Conduit] Reconnecting...\x1b[0m');
+        terminalRef.current?.writeln(ANSI.RECONNECTING);
 
         reconnectTimeoutRef.current = setTimeout(() => {
           connectInternal(true);
         }, delay);
       } else {
-        terminalRef.current?.writeln('\r\n\x1b[31m[Conduit] Connection lost. Max reconnect attempts reached.\x1b[0m');
+        terminalRef.current?.writeln(ANSI.CONNECTION_LOST);
         onErrorRef.current('Connection lost after maximum reconnect attempts.');
         onDisconnectRef.current();
       }
