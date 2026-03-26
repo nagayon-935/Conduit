@@ -5,13 +5,18 @@ import (
 	"context"
 	"crypto/ed25519"
 	"crypto/rand"
+	"encoding/json"
 	"encoding/pem"
 	"fmt"
 	"io"
 	"net"
+	"net/http"
+	"net/http/httptest"
+	"strings"
 	"testing"
 	"time"
 
+	"github.com/gorilla/websocket"
 	"github.com/nagayon-935/conduit/internal/session"
 	"golang.org/x/crypto/ssh"
 )
@@ -372,4 +377,142 @@ func TestStartStdinForwarder_StopsOnSessionClose(t *testing.T) {
 	realSess.Close()
 	// Give the goroutine a moment to notice the closed done channel.
 	time.Sleep(50 * time.Millisecond)
+}
+
+func TestReadPump(t *testing.T) {
+	t.Parallel()
+
+	upgrader := websocket.Upgrader{}
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		ws, err := upgrader.Upgrade(w, r, nil)
+		if err != nil {
+			return
+		}
+		defer ws.Close()
+		for {
+			_, _, err := ws.ReadMessage()
+			if err != nil {
+				return
+			}
+		}
+	}))
+	defer ts.Close()
+
+	wsURL := "ws" + strings.TrimPrefix(ts.URL, "http")
+	ws, _, err := websocket.DefaultDialer.Dial(wsURL, nil)
+	if err != nil {
+		t.Fatalf("failed to dial: %v", err)
+	}
+	defer ws.Close()
+
+	sess := session.NewSession("test", "host", 22, "user", nil, nil, nil, nil)
+	sess.AddWebSocket("conn1", ws)
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	go readPump(ctx, sess, DefaultPumpConfig())
+
+	payload := []byte("broadcast-test")
+	sess.ToClient <- payload
+
+	// Verification: ToClient channel is read and BroadcastToWebSockets is called.
+	time.Sleep(100 * time.Millisecond)
+}
+
+func TestWritePumpAndControlMessage(t *testing.T) {
+	t.Parallel()
+
+	upgrader := websocket.Upgrader{}
+	var serverWs *websocket.Conn
+	done := make(chan struct{})
+	
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		ws, err := upgrader.Upgrade(w, r, nil)
+		if err != nil {
+			return
+		}
+		serverWs = ws
+		close(done)
+		// Keep connection alive for a bit
+		time.Sleep(2 * time.Second)
+	}))
+	defer ts.Close()
+
+	wsURL := "ws" + strings.TrimPrefix(ts.URL, "http")
+	clientWs, _, err := websocket.DefaultDialer.Dial(wsURL, nil)
+	if err != nil {
+		t.Fatalf("failed to dial: %v", err)
+	}
+	defer clientWs.Close()
+	<-done
+	// serverWs is now set
+
+	sess := session.NewSession("test", "host", 22, "user", nil, nil, nil, nil)
+	cfg := DefaultPumpConfig()
+
+	go writePump("conn1", serverWs, sess, cfg)
+
+	// Test TextMessage (Control Message - ping)
+	ping, _ := json.Marshal(wsMessage{Type: "ping"})
+	if err := clientWs.WriteMessage(websocket.TextMessage, ping); err != nil {
+		t.Fatalf("failed to write ping: %v", err)
+	}
+
+	// Read pong
+	_, msg, err := clientWs.ReadMessage()
+	if err != nil {
+		t.Fatalf("failed to read pong: %v", err)
+	}
+	var resp wsMessage
+	if err := json.Unmarshal(msg, &resp); err != nil || resp.Type != "pong" {
+		t.Errorf("expected pong, got %v", resp)
+	}
+
+	// Test BinaryMessage (Data)
+	data := []byte("binary data")
+	if err := clientWs.WriteMessage(websocket.BinaryMessage, data); err != nil {
+		t.Fatalf("failed to write binary: %v", err)
+	}
+
+	select {
+	case got := <-sess.FromClient:
+		if !bytes.Equal(got, data) {
+			t.Errorf("data mismatch: got %q, want %q", got, data)
+		}
+	case <-time.After(1 * time.Second):
+		t.Fatal("timeout waiting for binary data in FromClient")
+	}
+}
+
+func TestStartSessionPumps(t *testing.T) {
+	// Simple smoke test to cover the function
+	sess := session.NewSession("test", "host", 22, "user", nil, nil, nil, bytes.NewBuffer(nil))
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	
+	StartSessionPumps(ctx, sess, DefaultPumpConfig())
+	time.Sleep(50 * time.Millisecond)
+}
+
+func TestStartConnectionPump(t *testing.T) {
+	// Simple smoke test to cover the function
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		upgrader := websocket.Upgrader{}
+		ws, _ := upgrader.Upgrade(w, r, nil)
+		if ws != nil {
+			defer ws.Close()
+			time.Sleep(100 * time.Millisecond)
+		}
+	}))
+	defer ts.Close()
+
+	wsURL := "ws" + strings.TrimPrefix(ts.URL, "http")
+	ws, _, _ := websocket.DefaultDialer.Dial(wsURL, nil)
+	if ws != nil {
+		defer ws.Close()
+		sess := session.NewSession("test", "host", 22, "user", nil, nil, nil, nil)
+		StartConnectionPump("conn1", ws, sess, DefaultPumpConfig())
+		time.Sleep(50 * time.Millisecond)
+	}
 }

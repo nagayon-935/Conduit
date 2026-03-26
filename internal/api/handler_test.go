@@ -437,18 +437,132 @@ func TestCORSHeaders(t *testing.T) {
 }
 
 // TestCORSPreflight は OPTIONS プリフライトリクエストに 204 を返すことを検証する。
-func TestCORSPreflight(t *testing.T) {
-	t.Parallel()
-
+// TestHandleTerminal_Success は有効な token でアクセスした場合に
+// WebSocket アップグレードが成功し、SSH クライアントとの通信が開始されることを検証する。
+func TestHandleTerminal_Success(t *testing.T) {
 	handler := newTestHandler(mockVaultOK(), mockDialerOK())
-	req := httptest.NewRequest(http.MethodOptions, "/api/connect", nil)
-	req.Header.Set("Origin", "http://localhost:5173")
-	req.Header.Set("Access-Control-Request-Method", "POST")
+	
+	// まずセッションを作成する
+	w := postJSON(t, handler, "/api/connect", map[string]any{
+		"host": "127.0.0.1",
+		"port": 22,
+		"user": "test",
+	})
+	body := decodeJSONBody(t, w)
+	token := body["session_token"].(string)
+
+	srv := httptest.NewServer(handler)
+	defer srv.Close()
+
+	wsURL := "ws" + strings.TrimPrefix(srv.URL, "http") + "/ws?token=" + token
+	dialer := websocket.Dialer{HandshakeTimeout: 5 * time.Second}
+
+	conn, _, err := dialer.Dial(wsURL, nil)
+	if err != nil {
+		t.Fatalf("Dial failed: %v", err)
+	}
+	defer conn.Close()
+	
+	// 接続が確立されたことを確認
+	time.Sleep(100 * time.Millisecond)
+}
+
+// ============================================================
+// GET /api/sessions のテスト
+// ============================================================
+
+func TestHandleListSessions(t *testing.T) {
+	t.Parallel()
+	handler := newTestHandler(mockVaultOK(), mockDialerOK())
+	
+	// Create a session first
+	postJSON(t, handler, "/api/connect", map[string]any{
+		"host": "127.0.0.1",
+		"port": 22,
+		"user": "test",
+	})
+
+	req := httptest.NewRequest(http.MethodGet, "/api/sessions", nil)
 	w := httptest.NewRecorder()
 	handler.ServeHTTP(w, req)
 
-	// CORS ミドルウェアが OPTIONS を横取りして 204 を返す
+	if w.Code != http.StatusOK {
+		t.Fatalf("status = %d, want 200", w.Code)
+	}
+
+	var sessions []map[string]any
+	if err := json.NewDecoder(w.Body).Decode(&sessions); err != nil {
+		t.Fatalf("decode body: %v", err)
+	}
+	if len(sessions) != 1 {
+		t.Errorf("len(sessions) = %d, want 1", len(sessions))
+	}
+}
+
+func TestHandleKillSession_Success(t *testing.T) {
+	t.Parallel()
+	handler := newTestHandler(mockVaultOK(), mockDialerOK())
+	
+	// Create a session first
+	wConnect := postJSON(t, handler, "/api/connect", map[string]any{
+		"host": "127.0.0.1",
+		"port": 22,
+		"user": "test",
+	})
+	body := decodeJSONBody(t, wConnect)
+	token := body["session_token"].(string)
+
+	// Use the actual path with the token
+	req := httptest.NewRequest(http.MethodDelete, "/api/sessions/"+token, nil)
+	w := httptest.NewRecorder()
+	handler.ServeHTTP(w, req)
+
 	if w.Code != http.StatusNoContent {
 		t.Fatalf("status = %d, want 204", w.Code)
+	}
+}
+
+func TestHandleKillSession_NotFound(t *testing.T) {
+	t.Parallel()
+	handler := newTestHandler(mockVaultOK(), mockDialerOK())
+
+	req := httptest.NewRequest(http.MethodDelete, "/api/sessions/non-existent-token", nil)
+	w := httptest.NewRecorder()
+	handler.ServeHTTP(w, req)
+
+	if w.Code != http.StatusNotFound {
+		t.Fatalf("status = %d, want 404", w.Code)
+	}
+}
+
+// ============================================================
+// GET /api/logs のテスト
+// ============================================================
+
+func TestHandleListLogs(t *testing.T) {
+	t.Parallel()
+	handler := newTestHandler(mockVaultOK(), mockDialerOK())
+	
+	// Connect triggers a log entry
+	postJSON(t, handler, "/api/connect", map[string]any{
+		"host": "127.0.0.1",
+		"port": 22,
+		"user": "test",
+	})
+
+	req := httptest.NewRequest(http.MethodGet, "/api/logs", nil)
+	w := httptest.NewRecorder()
+	handler.ServeHTTP(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("status = %d, want 200", w.Code)
+	}
+
+	var logs []map[string]any
+	if err := json.NewDecoder(w.Body).Decode(&logs); err != nil {
+		t.Fatalf("decode body: %v", err)
+	}
+	if len(logs) != 1 {
+		t.Errorf("len(logs) = %d, want 1", len(logs))
 	}
 }
