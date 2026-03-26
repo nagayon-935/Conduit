@@ -12,9 +12,10 @@ import (
 )
 
 const (
-	GracePeriod       = 15 * time.Minute
-	ToClientBufSize   = 256
-	FromClientBufSize = 64
+	GracePeriod        = 15 * time.Minute
+	ToClientBufSize    = 256
+	FromClientBufSize  = 64
+	tokenPreviewLength = 8 // characters shown in Info() before "..."
 )
 
 type SessionState int
@@ -197,8 +198,8 @@ func (s *Session) Info() SessionInfo {
 	}
 
 	tok := s.Token
-	if len(tok) > 8 {
-		tok = tok[:8] + "..."
+	if len(tok) > tokenPreviewLength {
+		tok = tok[:tokenPreviewLength] + "..."
 	}
 
 	return SessionInfo{
