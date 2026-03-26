@@ -1,5 +1,9 @@
 # Conduit — Web SSH Terminal
 
+> ⚠️ **開発中 (Work in Progress)**
+> このプロジェクトは現在開発中であり、実環境での動作確認は行っていません。
+> 本番環境での使用は推奨しません。
+
 ブラウザから SSH に接続できる Web ターミナルアプリケーションです。
 HashiCorp Vault が発行する短命 SSH 証明書（TTL=5分）で認証し、WebSocket 経由でリアルタイムにターミナルを操作できます。
 
