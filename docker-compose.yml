@@ -1,0 +1,78 @@
+services:
+  # ── Vault (dev mode) ──────────────────────────────────────────────────────
+  vault:
+    image: hashicorp/vault:1.17
+    container_name: conduit-vault
+    environment:
+      VAULT_DEV_ROOT_TOKEN_ID: conduit-dev-token
+      VAULT_DEV_LISTEN_ADDRESS: 0.0.0.0:8200
+    ports:
+      - "8200:8200"
+    cap_add:
+      - IPC_LOCK
+    healthcheck:
+      test: ["CMD", "vault", "status", "-address=http://127.0.0.1:8200"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+      start_period: 5s
+
+  # ── Vault 初期化（SSH Secrets Engine 設定） ────────────────────────────────
+  vault-init:
+    image: hashicorp/vault:1.17
+    container_name: conduit-vault-init
+    depends_on:
+      vault:
+        condition: service_healthy
+    environment:
+      VAULT_ADDR: http://vault:8200
+      VAULT_TOKEN: conduit-dev-token
+    volumes:
+      - ./docker/vault/init.sh:/init.sh
+    entrypoint: ["sh", "/init.sh"]
+    restart: on-failure
+
+  # ── SSH サーバー（証明書認証） ──────────────────────────────────────────────
+  sshd:
+    build:
+      context: ./docker/sshd
+    container_name: conduit-sshd
+    depends_on:
+      vault-init:
+        condition: service_completed_successfully
+    environment:
+      VAULT_ADDR: http://vault:8200
+    ports:
+      - "2222:22"
+    healthcheck:
+      test: ["CMD", "nc", "-z", "localhost", "22"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+      start_period: 5s
+
+  # ── Conduit バックエンド ───────────────────────────────────────────────────
+  backend:
+    build:
+      context: .
+      dockerfile: docker/backend/Dockerfile
+    container_name: conduit-backend
+    depends_on:
+      vault-init:
+        condition: service_completed_successfully
+      sshd:
+        condition: service_healthy
+    environment:
+      VAULT_ADDR: http://vault:8200
+      VAULT_TOKEN: conduit-dev-token
+      VAULT_SSH_ROLE: conduit
+      VAULT_SSH_MOUNT: ssh
+      SERVER_ADDR: :8080
+    ports:
+      - "8080:8080"
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:8080/healthz"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+      start_period: 5s

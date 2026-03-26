@@ -1,0 +1,18 @@
+Port 22
+PermitRootLogin no
+
+# パスワード認証を無効化（証明書認証のみ許可）
+PasswordAuthentication no
+ChallengeResponseAuthentication no
+UsePAM no
+
+# Vault CA が署名した証明書を信頼する
+TrustedUserCAKeys /etc/ssh/trusted-ca.pub
+
+# ログ
+LogLevel INFO
+PrintMotd no
+
+# Keep-alive
+ClientAliveInterval 30
+ClientAliveCountMax 3
