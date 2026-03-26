@@ -16,8 +16,13 @@ type httpDoer interface {
 	Do(req *http.Request) (*http.Response, error)
 }
 
+const (
+	httpClientTimeout = 15 * time.Second
+	certTTL           = "5m"
+)
+
 func newHTTPClient() httpDoer {
-	return &http.Client{Timeout: 15 * time.Second}
+	return &http.Client{Timeout: httpClientTimeout}
 }
 
 // signRequest is the JSON body sent to Vault's SSH sign endpoint.
@@ -44,7 +49,7 @@ func (c *Client) SignPublicKey(ctx context.Context, publicKey string, validPrinc
 
 	body := signRequest{
 		PublicKey:       strings.TrimSpace(publicKey),
-		TTL:             "5m",
+		TTL:             certTTL,
 		ValidPrincipals: validPrincipal,
 	}
 
