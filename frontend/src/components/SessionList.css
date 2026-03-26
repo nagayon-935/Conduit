@@ -1,142 +1,267 @@
-.session-list-wrapper {
+/* ── Page layout ─────────────────────────────────────────────────────── */
+.sl-page {
   display: flex;
-  align-items: flex-start;
-  justify-content: center;
+  flex-direction: column;
   min-height: 100vh;
   background: #1a1b26;
-  padding: 24px;
-  box-sizing: border-box;
+  color: #c0caf5;
 }
 
-.session-list-card {
-  background: rgba(36, 40, 59, 0.9);
-  backdrop-filter: blur(10px);
-  -webkit-backdrop-filter: blur(10px);
-  border: 1px solid #414868;
-  border-radius: 12px;
-  padding: 32px 40px;
-  width: 100%;
-  max-width: 860px;
-  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
-}
-
-.session-list-header {
+/* ── Navigation ──────────────────────────────────────────────────────── */
+.sl-nav {
   display: flex;
   align-items: center;
-  gap: 16px;
-  margin-bottom: 24px;
+  justify-content: space-between;
+  padding: 0 32px;
+  height: 56px;
+  background: #16161e;
+  border-bottom: 1px solid #1e2030;
+  flex-shrink: 0;
 }
 
-.session-list-title {
-  font-size: 18px;
-  font-weight: 700;
-  color: #c0caf5;
-  margin: 0;
+.sl-nav-center {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
 }
 
-.back-btn {
+.sl-nav-right {
+  width: 80px; /* balance back button */
+}
+
+.sl-back-btn {
   background: transparent;
   border: 1px solid #414868;
   border-radius: 6px;
   color: #7aa2f7;
   font-size: 13px;
   font-weight: 600;
-  padding: 6px 12px;
+  padding: 6px 14px;
   cursor: pointer;
   transition: background 0.12s ease, border-color 0.12s ease;
+  white-space: nowrap;
 }
 
-.back-btn:hover {
+.sl-back-btn:hover {
   background: rgba(122, 162, 247, 0.1);
   border-color: #7aa2f7;
 }
 
-.session-list-error {
-  margin-bottom: 16px;
-  padding: 10px 14px;
-  background: rgba(247, 118, 142, 0.1);
-  border: 1px solid rgba(247, 118, 142, 0.3);
-  border-radius: 6px;
-  color: #f7768e;
-  font-size: 13px;
+.sl-nav-title {
+  font-size: 15px;
+  font-weight: 700;
+  color: #c0caf5;
+  letter-spacing: -0.2px;
 }
 
-.session-list-empty {
+.sl-updated {
+  font-size: 11px;
   color: #565f89;
-  font-size: 14px;
-  text-align: center;
-  padding: 32px 0;
 }
 
-.session-table-wrapper {
+/* ── Main content ────────────────────────────────────────────────────── */
+.sl-main {
+  flex: 1;
+  padding: 32px;
+  max-width: 1100px;
+  width: 100%;
+  margin: 0 auto;
+  box-sizing: border-box;
+}
+
+/* ── Stats row ───────────────────────────────────────────────────────── */
+.sl-stats {
+  display: flex;
+  gap: 16px;
+  margin-bottom: 28px;
+}
+
+.sl-stat {
+  flex: 1;
+  background: rgba(36, 40, 59, 0.7);
+  border: 1px solid #1e2030;
+  border-radius: 10px;
+  padding: 18px 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.sl-stat--connected {
+  border-color: rgba(158, 206, 106, 0.2);
+}
+
+.sl-stat--disconnected {
+  border-color: rgba(224, 175, 104, 0.2);
+}
+
+.sl-stat-value {
+  font-size: 32px;
+  font-weight: 700;
+  color: #c0caf5;
+  line-height: 1;
+}
+
+.sl-stat--connected .sl-stat-value { color: #9ece6a; }
+.sl-stat--disconnected .sl-stat-value { color: #e0af68; }
+
+.sl-stat-label {
+  font-size: 12px;
+  color: #565f89;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+/* ── Error ───────────────────────────────────────────────────────────── */
+.sl-error {
+  margin-bottom: 20px;
+  padding: 12px 16px;
+  background: rgba(247, 118, 142, 0.08);
+  border: 1px solid rgba(247, 118, 142, 0.28);
+  border-radius: 8px;
+  color: #f7768e;
+  font-size: 14px;
+}
+
+/* ── Empty state ─────────────────────────────────────────────────────── */
+.sl-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 80px 0;
+  gap: 12px;
+}
+
+.sl-empty-icon {
+  font-size: 48px;
+  opacity: 0.4;
+}
+
+.sl-empty-text {
+  font-size: 18px;
+  font-weight: 600;
+  color: #565f89;
+  margin: 0;
+}
+
+.sl-empty-sub {
+  font-size: 14px;
+  color: #3b4072;
+  margin: 0;
+}
+
+/* ── Table ───────────────────────────────────────────────────────────── */
+.sl-table-wrapper {
+  background: rgba(36, 40, 59, 0.6);
+  border: 1px solid #1e2030;
+  border-radius: 12px;
+  overflow: hidden;
   overflow-x: auto;
 }
 
-.session-table {
+.sl-table {
   width: 100%;
   border-collapse: collapse;
-  font-size: 13px;
+  font-size: 14px;
 }
 
-.session-table th {
+.sl-table th {
   text-align: left;
   font-size: 11px;
-  font-weight: 600;
+  font-weight: 700;
   color: #565f89;
   text-transform: uppercase;
-  letter-spacing: 0.6px;
-  padding: 8px 12px;
-  border-bottom: 1px solid #414868;
+  letter-spacing: 0.7px;
+  padding: 14px 18px;
+  background: rgba(22, 22, 30, 0.5);
+  border-bottom: 1px solid #1e2030;
+  white-space: nowrap;
 }
 
-.session-table td {
-  padding: 10px 12px;
+.sl-table td {
+  padding: 14px 18px;
   color: #c0caf5;
-  border-bottom: 1px solid #1e2030;
+  border-bottom: 1px solid #1a1b26;
   vertical-align: middle;
 }
 
-.session-table tr:last-child td {
+.sl-table tbody tr:last-child td {
   border-bottom: none;
 }
 
-.session-table tr:hover td {
-  background: rgba(65, 72, 104, 0.2);
+.sl-table tbody tr:hover td {
+  background: rgba(65, 72, 104, 0.15);
 }
 
-.mono {
+code {
   font-family: 'Menlo', 'Monaco', 'Courier New', monospace;
-  font-size: 12px;
+  font-size: 13px;
 }
 
-.center {
-  text-align: center;
+.token-cell {
+  color: #7aa2f7;
 }
 
+.center { text-align: center; }
+
+.muted { color: #565f89; }
+
+.expiry { font-variant-numeric: tabular-nums; }
+.expiry--warn { color: #e0af68; }
+
+/* ── State badges ────────────────────────────────────────────────────── */
 .state-badge {
-  display: inline-block;
-  padding: 2px 8px;
-  border-radius: 4px;
-  font-size: 11px;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 10px;
+  border-radius: 20px;
+  font-size: 12px;
   font-weight: 600;
-  text-transform: uppercase;
-  letter-spacing: 0.4px;
+  white-space: nowrap;
 }
 
 .state-badge--connected {
-  background: rgba(158, 206, 106, 0.15);
+  background: rgba(158, 206, 106, 0.12);
   color: #9ece6a;
-  border: 1px solid rgba(158, 206, 106, 0.3);
+  border: 1px solid rgba(158, 206, 106, 0.25);
 }
 
 .state-badge--disconnected {
-  background: rgba(224, 175, 104, 0.15);
+  background: rgba(224, 175, 104, 0.12);
   color: #e0af68;
-  border: 1px solid rgba(224, 175, 104, 0.3);
+  border: 1px solid rgba(224, 175, 104, 0.25);
 }
 
 .state-badge--terminated {
-  background: rgba(247, 118, 142, 0.15);
+  background: rgba(247, 118, 142, 0.1);
   color: #f7768e;
-  border: 1px solid rgba(247, 118, 142, 0.3);
+  border: 1px solid rgba(247, 118, 142, 0.2);
+}
+
+/* ── Responsive ──────────────────────────────────────────────────────── */
+@media (max-width: 720px) {
+  .sl-nav {
+    padding: 0 16px;
+  }
+  .sl-main {
+    padding: 20px 16px;
+  }
+  .sl-stats {
+    gap: 10px;
+  }
+  .sl-stat {
+    padding: 14px 16px;
+  }
+  .sl-stat-value {
+    font-size: 24px;
+  }
+  .sl-table th,
+  .sl-table td {
+    padding: 12px 12px;
+    font-size: 13px;
+  }
 }

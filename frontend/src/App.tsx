@@ -22,17 +22,11 @@ export default function App() {
   const [connectionInfo, setConnectionInfo] = useState<ConnectionInfo | null>(null);
   const { history, addEntry } = useConnectionHistory();
 
-  // On startup restore any valid session from localStorage.
   useEffect(() => {
     const stored = loadSession();
     if (stored) {
       setSessionToken(stored.token);
-      setConnectionInfo({
-        host: stored.host,
-        port: stored.port,
-        user: stored.user,
-        expiresAt: stored.expiresAt,
-      });
+      setConnectionInfo({ host: stored.host, port: stored.port, user: stored.user, expiresAt: stored.expiresAt });
       setAppState('connected');
     }
   }, []);
@@ -79,22 +73,12 @@ export default function App() {
   }
 
   return (
-    <div>
-      <div className="app-topbar">
-        <button
-          className="sessions-btn"
-          onClick={() => setAppState('sessions')}
-          title="View active sessions"
-        >
-          Sessions
-        </button>
-      </div>
-      <ConnectForm
-        appState={appState === 'idle' || appState === 'connecting' ? appState : 'idle'}
-        onConnect={handleConnect}
-        onStateChange={handleStateChange}
-        history={history}
-      />
-    </div>
+    <ConnectForm
+      appState={appState === 'idle' || appState === 'connecting' ? appState : 'idle'}
+      onConnect={handleConnect}
+      onStateChange={handleStateChange}
+      history={history}
+      onShowSessions={() => setAppState('sessions')}
+    />
   );
 }
