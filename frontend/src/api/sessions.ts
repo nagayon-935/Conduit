@@ -1,18 +1,12 @@
 import type { SessionInfo } from '../types';
+import { apiFetch } from './fetch';
 
-export async function fetchSessions(): Promise<SessionInfo[]> {
-  const res = await fetch('/api/sessions');
-  if (!res.ok) {
-    throw new Error(`Failed to fetch sessions: ${res.status}`);
-  }
-  return res.json();
+export function fetchSessions(): Promise<SessionInfo[]> {
+  return apiFetch<SessionInfo[]>('/api/sessions');
 }
 
-export async function killSession(token: string): Promise<void> {
-  const res = await fetch(`/api/sessions/${encodeURIComponent(token)}`, {
+export function killSession(token: string): Promise<void> {
+  return apiFetch<void>(`/api/sessions/${encodeURIComponent(token)}`, {
     method: 'DELETE',
   });
-  if (!res.ok && res.status !== 204) {
-    throw new Error(`Failed to kill session: ${res.status}`);
-  }
 }
