@@ -256,6 +256,7 @@ export default function App() {
         onClose={handleCloseTab}
         onNew={() => setShowOverlay(true)}
         layoutType={layoutType}
+        paneTabIds={paneTabIds}
         onLayoutChange={switchLayout}
       />
 

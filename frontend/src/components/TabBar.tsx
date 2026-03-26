@@ -128,9 +128,7 @@ export function TabBar({
         })
       )}
 
-      {/* Spacer — always pushes controls to the right */}
-      <div className="tab-bar-spacer" />
-
+      {/* + button — stays next to tabs */}
       <button
         className="tab-new-btn"
         aria-label="New connection"
@@ -138,7 +136,10 @@ export function TabBar({
         onClick={onNew}
       >+</button>
 
-      {/* Layout buttons — always right of + */}
+      {/* Spacer — pushes layout buttons to the right */}
+      <div className="tab-bar-spacer" />
+
+      {/* Layout buttons — always right end */}
       <div className="tab-layout-group">
         {LAYOUT_BTNS.map(({ key, title, minTabs }) => (
           <button

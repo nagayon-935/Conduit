@@ -1,0 +1,15 @@
+# CI/CD デプロイ用オーバーライド
+# docker-compose.prod.yml と組み合わせて、ローカルビルドの代わりに
+# GitHub Container Registry の事前ビルドイメージを使用します。
+#
+# 使い方:
+#   docker compose -f docker-compose.prod.yml -f docker-compose.ghcr.yml up -d
+#
+# BACKEND_IMAGE 環境変数でイメージタグを上書き可能:
+#   BACKEND_IMAGE=ghcr.io/.../backend:sha-abc1234 \
+#     docker compose -f docker-compose.prod.yml -f docker-compose.ghcr.yml up -d
+
+services:
+  backend:
+    build: ~   # ローカルビルドを無効化
+    image: ${BACKEND_IMAGE:-ghcr.io/nagayon-935/conduit/backend:latest}
