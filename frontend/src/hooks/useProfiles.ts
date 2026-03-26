@@ -1,29 +1,14 @@
 import { useState, useCallback } from 'react';
-
-export interface Profile {
-  id: string;
-  name: string;
-  host: string;
-  port: number;
-  user: string;
-  createdAt: string;
-}
-
-const STORAGE_KEY = 'conduit-profiles';
-const MAX_PROFILES = 20;
+import type { Profile } from '../types';
+import { readJSON, writeJSON } from '../utils/storage';
+import { STORAGE_KEYS, MAX_PROFILES } from '../constants';
 
 function loadFromStorage(): Profile[] {
-  try {
-    const raw = localStorage.getItem(STORAGE_KEY);
-    if (!raw) return [];
-    return JSON.parse(raw) as Profile[];
-  } catch {
-    return [];
-  }
+  return readJSON<Profile[]>(STORAGE_KEYS.PROFILES, []);
 }
 
 function saveToStorage(profiles: Profile[]): void {
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(profiles));
+  writeJSON(STORAGE_KEYS.PROFILES, profiles);
 }
 
 function generateId(): string {
@@ -38,7 +23,7 @@ interface UseProfilesReturn {
 }
 
 export function useProfiles(): UseProfilesReturn {
-  const [profiles, setProfiles] = useState<Profile[]>(() => loadFromStorage());
+  const [profiles, setProfiles] = useState<Profile[]>(loadFromStorage);
 
   const saveProfile = useCallback((name: string, host: string, port: number, user: string) => {
     const newProfile: Profile = {
@@ -65,9 +50,7 @@ export function useProfiles(): UseProfilesReturn {
   }, []);
 
   const loadProfile = useCallback(
-    (id: string): Profile | undefined => {
-      return profiles.find((p) => p.id === id);
-    },
+    (id: string): Profile | undefined => profiles.find((p) => p.id === id),
     [profiles],
   );
 
