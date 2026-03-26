@@ -1,21 +1,10 @@
 import { useState, useCallback } from 'react';
-
-export interface HistoryEntry {
-  host: string;
-  port: number;
-  user: string;
-  connectedAt: string;
-}
-
-const STORAGE_KEY = 'conduit-history';
-const MAX_ENTRIES = 10;
+import type { HistoryEntry } from '../types';
+import { readJSON, writeJSON, removeKey } from '../utils/storage';
+import { STORAGE_KEYS, MAX_HISTORY_ENTRIES } from '../constants';
 
 function loadHistory(): HistoryEntry[] {
-  try {
-    return JSON.parse(localStorage.getItem(STORAGE_KEY) || '[]');
-  } catch {
-    return [];
-  }
+  return readJSON<HistoryEntry[]>(STORAGE_KEYS.HISTORY, []);
 }
 
 export function useConnectionHistory() {
@@ -32,15 +21,15 @@ export function useConnectionHistory() {
       const filtered = prev.filter(
         (h) => !(h.host === host && h.port === port && h.user === user),
       );
-      const updated = [entry, ...filtered].slice(0, MAX_ENTRIES);
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(updated));
+      const updated = [entry, ...filtered].slice(0, MAX_HISTORY_ENTRIES);
+      writeJSON(STORAGE_KEYS.HISTORY, updated);
       return updated;
     });
   }, []);
 
   const clearHistory = useCallback(() => {
     setHistory([]);
-    localStorage.removeItem(STORAGE_KEY);
+    removeKey(STORAGE_KEYS.HISTORY);
   }, []);
 
   return { history, addEntry, clearHistory };
