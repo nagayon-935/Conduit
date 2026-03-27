@@ -20,8 +20,15 @@ interface TabBarProps {
   profiles?: Profile[];
 }
 
+function matchProfile(profiles: Profile[], host: string, port: number, user: string): Profile | undefined {
+  return (
+    profiles.find(p => p.host === host && p.port === port && p.user === user) ??
+    profiles.find(p => p.host === host && p.port === port && p.user === '')
+  );
+}
+
 function tabLabel(tab: Tab, profiles: Profile[] = []): string {
-  const matched = profiles.find(p => p.host === tab.host && p.port === tab.port && p.user === tab.user);
+  const matched = matchProfile(profiles, tab.host, tab.port, tab.user);
   if (matched) return matched.name;
   const portSuffix = tab.port === 22 ? '' : `:${tab.port}`;
   return `${tab.user}@${tab.host}${portSuffix}`;
