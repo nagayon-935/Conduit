@@ -201,7 +201,6 @@ docker compose -f docker-compose.prod.yml logs -f
 # VM②（Vault）
 docker compose -f docker-compose.vault.yml start   # 起動
 docker compose -f docker-compose.vault.yml stop    # 停止
-# ※ 再起動後は Vault を手動で Unseal する必要があります
 
 # VM①（Conduit）
 docker compose -f docker-compose.prod.yml start    # 起動
@@ -209,9 +208,39 @@ docker compose -f docker-compose.prod.yml stop     # 停止
 docker compose -f docker-compose.prod.yml restart  # 再起動
 ```
 
-### Vault の Unseal（VM 再起動後）
+### Vault の自動 Unseal（VM 再起動後）
 
-VM を再起動すると Vault が Sealed 状態になります。以下で Unseal:
+VM を再起動すると Vault が Sealed 状態になります。自動 Unseal を設定することで、再起動後も自動的に Unseal されます。
+
+#### 自動 Unseal のセットアップ（初回のみ・VM② で実行）
+
+```bash
+# VM② (Vault サーバー) で root / sudo 実行
+sudo bash scripts/vault-auto-unseal-setup.sh
+```
+
+スクリプトが対話的に以下を行います:
+1. Unseal Key を入力（通常 3 つ）→ `/etc/vault/unseal-keys` に保存（root のみ読み取り可・mode 600）
+2. `/usr/local/bin/vault-auto-unseal.sh` を配置
+3. systemd サービス + タイマーを作成・有効化（VM 起動 30 秒後に自動実行）
+
+セットアップ後は VM を再起動するだけで Vault が自動的に Unseal されます。
+
+```bash
+# ログ確認
+journalctl -u vault-auto-unseal.service -f
+
+# 手動で今すぐ Unseal
+sudo systemctl start vault-auto-unseal.service
+
+# タイマー状態確認
+systemctl status vault-auto-unseal.timer
+```
+
+> ⚠️ Unseal Key はファイルシステム上に平文で保存されます。本番環境では
+> [HashiCorp Vault Auto Unseal (Transit/KMS)](https://developer.hashicorp.com/vault/docs/configuration/seal) の利用を推奨します。
+
+#### 手動 Unseal（自動 Unseal を設定していない場合）
 
 ```bash
 docker exec conduit-vault vault operator unseal  # ×3回（Unseal Keys を使用）
