@@ -232,7 +232,8 @@ docker compose -f docker-compose.vault.yml stop    # 停止
 # VM①（Conduit）
 docker compose -f docker-compose.prod.yml start    # 起動
 docker compose -f docker-compose.prod.yml stop     # 停止
-docker compose -f docker-compose.prod.yml restart  # 再起動
+docker compose -f docker-compose.prod.yml down && docker compose -f docker-compose.prod.yml up -d  # 再起動（.env.prod の変更を反映させる場合）
+# ※ restart コマンドは .env.prod の変更を読み込まないため、環境変数を変更した場合は down → up を使うこと
 ```
 
 ### Vault の自動 Unseal（VM 再起動後）
