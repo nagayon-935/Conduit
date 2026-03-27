@@ -87,7 +87,7 @@ docker exec -e VAULT_ADDR=http://127.0.0.1:8200 -e VAULT_TOKEN="${root_token}" c
 docker exec -e VAULT_ADDR=http://127.0.0.1:8200 -e VAULT_TOKEN="${root_token}" conduit-vault \
   vault write -f ssh/config/ca 2>/dev/null || echo "  (CA はすでに設定済みです)"
 
-docker exec -e VAULT_ADDR=http://127.0.0.1:8200 -e VAULT_TOKEN="${root_token}" conduit-vault \
+docker exec -i -e VAULT_ADDR=http://127.0.0.1:8200 -e VAULT_TOKEN="${root_token}" conduit-vault \
   vault write ssh/roles/conduit - <<'JSON'
 {
   "key_type": "ca",
@@ -110,7 +110,7 @@ echo ""
 echo "[6/6] Conduit 専用トークンを作成します..."
 
 # 最小権限ポリシー（SSH 署名のみ許可）
-docker exec -e VAULT_ADDR=http://127.0.0.1:8200 -e VAULT_TOKEN="${root_token}" conduit-vault \
+docker exec -i -e VAULT_ADDR=http://127.0.0.1:8200 -e VAULT_TOKEN="${root_token}" conduit-vault \
   vault policy write conduit - <<'POLICY'
 path "ssh/sign/conduit" {
   capabilities = ["create", "update"]
