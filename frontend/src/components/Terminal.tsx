@@ -48,13 +48,6 @@ export function Terminal({ sessionToken, host, port, user, expiresAt, onDisconne
     onError: handleError,
   });
 
-  // Feature ②: Browser tab title
-  useEffect(() => {
-    document.title = `${user}@${host} — Conduit`;
-    return () => {
-      document.title = 'Conduit';
-    };
-  }, [user, host]);
 
   // Init terminal on mount, then connect WebSocket once terminal is ready
   useEffect(() => {
