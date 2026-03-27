@@ -159,6 +159,19 @@ export default function App() {
     [addEntry, layoutType],
   );
 
+  // ── Reorder tabs ────────────────────────────────────────────────────────
+  const handleReorderTabs = useCallback((fromId: string, toId: string) => {
+    setTabs((prev) => {
+      const fromIdx = prev.findIndex((t) => t.id === fromId);
+      const toIdx = prev.findIndex((t) => t.id === toId);
+      if (fromIdx === -1 || toIdx === -1 || fromIdx === toIdx) return prev;
+      const updated = [...prev];
+      const [moved] = updated.splice(fromIdx, 1);
+      updated.splice(toIdx, 0, moved);
+      return updated;
+    });
+  }, []);
+
   // ── Close tab ───────────────────────────────────────────────────────────
   const handleCloseTab = useCallback(
     (id: string) => {
@@ -259,6 +272,7 @@ export default function App() {
         paneTabIds={paneTabIds}
         onLayoutChange={switchLayout}
         profiles={profiles}
+        onReorder={handleReorderTabs}
       />
 
       {/* ── Layout: single ── */}

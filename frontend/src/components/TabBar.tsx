@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import type { LayoutType, Profile } from '../types';
 import './TabBar.css';
 
@@ -18,6 +19,7 @@ interface TabBarProps {
   paneTabIds: (string | null)[];
   onLayoutChange: (layout: LayoutType) => void;
   profiles?: Profile[];
+  onReorder?: (fromId: string, toId: string) => void;
 }
 
 function matchProfile(profiles: Profile[], host: string, port: number, user: string): Profile | undefined {
@@ -62,7 +64,11 @@ export function TabBar({
   paneTabIds,
   onLayoutChange,
   profiles = [],
+  onReorder,
 }: TabBarProps) {
+  const [draggingId, setDraggingId] = useState<string | null>(null);
+  const [dragOverId, setDragOverId] = useState<string | null>(null);
+
   const isInSplit = layoutType !== '1';
 
   // Sessions currently shown in split panes (in pane order, skipping nulls)
@@ -82,9 +88,14 @@ export function TabBar({
           {backgroundTabs.map((tab) => (
             <div
               key={tab.id}
-              className="tab-item tab-item--bg"
+              className={`tab-item tab-item--bg${draggingId === tab.id ? ' tab-item--dragging' : ''}${dragOverId === tab.id && draggingId !== tab.id ? ' tab-item--drag-over' : ''}`}
               role="tab"
               aria-selected={false}
+              draggable
+              onDragStart={() => setDraggingId(tab.id)}
+              onDragOver={(e) => { e.preventDefault(); setDragOverId(tab.id); }}
+              onDrop={() => { if (draggingId && draggingId !== tab.id) onReorder?.(draggingId, tab.id); setDraggingId(null); setDragOverId(null); }}
+              onDragEnd={() => { setDraggingId(null); setDragOverId(null); }}
               onClick={() => onSelect(tab.id)}
               title={tabLabel(tab, profiles)}
             >
@@ -122,9 +133,14 @@ export function TabBar({
           return (
             <div
               key={tab.id}
-              className={`tab-item${isActive ? ' active' : ''}`}
+              className={`tab-item${isActive ? ' active' : ''}${draggingId === tab.id ? ' tab-item--dragging' : ''}${dragOverId === tab.id && draggingId !== tab.id ? ' tab-item--drag-over' : ''}`}
               role="tab"
               aria-selected={isActive}
+              draggable
+              onDragStart={() => setDraggingId(tab.id)}
+              onDragOver={(e) => { e.preventDefault(); setDragOverId(tab.id); }}
+              onDrop={() => { if (draggingId && draggingId !== tab.id) onReorder?.(draggingId, tab.id); setDraggingId(null); setDragOverId(null); }}
+              onDragEnd={() => { setDraggingId(null); setDragOverId(null); }}
               onClick={() => onSelect(tab.id)}
               title={tabLabel(tab, profiles)}
             >

@@ -53,6 +53,17 @@
   color: #a9b1d6;
 }
 
+/* ── Drag & Drop ──────────────────────────────────────────────────────── */
+.tab-item--dragging {
+  opacity: 0.35;
+  cursor: grabbing;
+}
+
+.tab-item--drag-over {
+  box-shadow: -2px 0 0 0 #7aa2f7;
+  background: rgba(122, 162, 247, 0.12) !important;
+}
+
 /* ── Close button ─────────────────────────────────────────────────────── */
 .tab-close {
   background: transparent;
