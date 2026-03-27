@@ -20,6 +20,7 @@ interface UseProfilesReturn {
   saveProfile: (name: string, host: string, port: number, user: string) => void;
   deleteProfile: (id: string) => void;
   loadProfile: (id: string) => Profile | undefined;
+  importProfiles: (entries: { name: string; host: string; port: number; user: string }[]) => number;
 }
 
 export function useProfiles(): UseProfilesReturn {
@@ -54,5 +55,31 @@ export function useProfiles(): UseProfilesReturn {
     [profiles],
   );
 
-  return { profiles, saveProfile, deleteProfile, loadProfile };
+  // 既存プロフィールと name+host が重複しないものだけを追加し、追加件数を返す
+  const importProfiles = useCallback(
+    (entries: { name: string; host: string; port: number; user: string }[]): number => {
+      let added = 0;
+      setProfiles((prev) => {
+        const existingKeys = new Set(prev.map((p) => `${p.name}|${p.host}`));
+        const newProfiles: Profile[] = entries
+          .filter((e) => !existingKeys.has(`${e.name}|${e.host}`))
+          .map((e) => ({
+            id: generateId(),
+            name: e.name,
+            host: e.host,
+            port: e.port,
+            user: e.user,
+            createdAt: new Date().toISOString(),
+          }));
+        added = newProfiles.length;
+        const updated = [...newProfiles, ...prev].slice(0, MAX_PROFILES);
+        saveToStorage(updated);
+        return updated;
+      });
+      return added;
+    },
+    [],
+  );
+
+  return { profiles, saveProfile, deleteProfile, loadProfile, importProfiles };
 }

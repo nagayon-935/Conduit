@@ -101,8 +101,8 @@ curl http://<VM②のIP>:8200/v1/ssh/public_key \
 echo "TrustedUserCAKeys /etc/ssh/trusted-ca.pub" \
   | sudo tee -a /etc/ssh/sshd_config
 
-# sshd を再読み込み
-sudo systemctl reload sshd
+# ssh を再読み込み
+sudo systemctl reload ssh
 ```
 
 ### 3. 接続ユーザーの確認

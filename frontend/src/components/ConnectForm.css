@@ -355,13 +355,43 @@ input[type='number'] { -moz-appearance: textfield; appearance: textfield; }
   border-top: 1px solid #1e2030;
 }
 
+.cf-profiles-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: clamp(10px, 1vh, 14px);
+}
+
 .cf-profiles-label {
   font-size: clamp(11px, 0.85vw, 13px);
   font-weight: 700;
   color: #565f89;
   text-transform: uppercase;
   letter-spacing: 0.8px;
-  margin: 0 0 clamp(10px, 1vh, 14px) 0;
+  margin: 0;
+}
+
+.cf-import-btn {
+  font-size: clamp(11px, 0.8vw, 12px);
+  color: #7aa2f7;
+  background: none;
+  border: 1px solid #3b4072;
+  border-radius: 6px;
+  padding: 4px 10px;
+  cursor: pointer;
+  transition: background 0.12s, color 0.12s;
+}
+.cf-import-btn:hover:not(:disabled) {
+  background: rgba(122, 162, 247, 0.1);
+  color: #a9c1ff;
+}
+.cf-import-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+
+.cf-import-message {
+  font-size: clamp(12px, 0.9vw, 13px);
+  color: #9ece6a;
+  text-align: center;
+  padding: 6px 0;
 }
 
 .cf-profiles-list {

@@ -1,8 +1,9 @@
-import { useState, type FormEvent } from 'react';
+import { useState, useRef, type FormEvent } from 'react';
 import { connectToHost } from '../api/connect';
 import type { AppState } from '../types';
 import type { HistoryEntry } from '../types';
 import { useProfiles } from '../hooks/useProfiles';
+import { parseSshConfig } from '../utils/parseSshConfig';
 import './ConnectForm.css';
 
 interface ConnectFormProps {
@@ -50,9 +51,39 @@ export function ConnectForm({
   const isLoading = appState === 'connecting';
 
   // Feature ④: Connection profiles
-  const { profiles, saveProfile, deleteProfile } = useProfiles();
+  const { profiles, saveProfile, deleteProfile, importProfiles } = useProfiles();
   const [showSaveProfile, setShowSaveProfile] = useState(false);
   const [profileName, setProfileName] = useState('');
+  const [importMessage, setImportMessage] = useState<string | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  function handleImportClick() {
+    fileInputRef.current?.click();
+  }
+
+  function handleFileChange(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = (ev) => {
+      const text = ev.target?.result as string;
+      const entries = parseSshConfig(text);
+      if (entries.length === 0) {
+        setImportMessage('No valid hosts found in the selected file.');
+        return;
+      }
+      const added = importProfiles(entries);
+      setImportMessage(
+        added > 0
+          ? `Imported ${added} profile${added > 1 ? 's' : ''}.`
+          : 'All hosts already exist as profiles.',
+      );
+      setTimeout(() => setImportMessage(null), 3000);
+    };
+    reader.readAsText(file);
+    // 同じファイルを再選択できるようにリセット
+    e.target.value = '';
+  }
 
   function handleHistoryClick(entry: HistoryEntry) {
     setFields({ host: entry.host, port: String(entry.port), user: entry.user });
@@ -332,6 +363,14 @@ export function ConnectForm({
             </button>
           </div>
 
+          {/* SSH config import (hidden file input) */}
+          <input
+            ref={fileInputRef}
+            type="file"
+            style={{ display: 'none' }}
+            onChange={handleFileChange}
+          />
+
           {/* Save as Profile */}
           <div className="cf-save-profile-row">
             {!showSaveProfile ? (
@@ -368,37 +407,49 @@ export function ConnectForm({
           </div>
 
           {error && <div className="cf-error" role="alert">{error}</div>}
+          {importMessage && <div className="cf-import-message" role="status">{importMessage}</div>}
 
           {/* Feature ④: Profiles section */}
-          {profiles.length > 0 && (
-            <div className="cf-profiles">
+          <div className="cf-profiles">
+            <div className="cf-profiles-header">
               <p className="cf-profiles-label">Profiles</p>
-              <ul className="cf-profiles-list">
-                {profiles.map((p) => (
-                  <li key={p.id} className="cf-profile-item">
-                    <button
-                      type="button"
-                      className="cf-profile-load"
-                      onClick={() => handleLoadProfile(p.id)}
-                      disabled={isLoading}
-                    >
-                      <span className="cf-profile-name">{p.name}</span>
-                      <span className="cf-profile-detail">{p.host}:{p.port} · {p.user}</span>
-                    </button>
-                    <button
-                      type="button"
-                      className="cf-profile-delete"
-                      onClick={() => deleteProfile(p.id)}
-                      title="Delete profile"
-                      disabled={isLoading}
-                    >
-                      ✕
-                    </button>
-                  </li>
-                ))}
-              </ul>
+              <button
+                type="button"
+                className="cf-import-btn"
+                onClick={handleImportClick}
+                disabled={isLoading}
+                title="Import hosts from ~/.ssh/config"
+              >
+                Import ~/.ssh/config
+              </button>
             </div>
+          {profiles.length > 0 && (
+            <ul className="cf-profiles-list">
+              {profiles.map((p) => (
+                <li key={p.id} className="cf-profile-item">
+                  <button
+                    type="button"
+                    className="cf-profile-load"
+                    onClick={() => handleLoadProfile(p.id)}
+                    disabled={isLoading}
+                  >
+                    <span className="cf-profile-name">{p.name}</span>
+                    <span className="cf-profile-detail">{p.host}:{p.port} · {p.user}</span>
+                  </button>
+                  <button
+                    type="button"
+                    className="cf-profile-delete"
+                    onClick={() => deleteProfile(p.id)}
+                    title="Delete profile"
+                    disabled={isLoading}
+                  >
+                    ✕
+                  </button>
+                </li>
+              ))}
+            </ul>
           )}
+          </div>
 
           {history.length > 0 && (
             <div className="cf-history">

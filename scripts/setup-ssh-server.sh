@@ -58,8 +58,8 @@ fi
 echo "  sshd_config に設定を追加しました。"
 
 # sshd を再読み込み
-sudo systemctl reload sshd
-echo "  sshd を再読み込みしました。"
+sudo systemctl reload ssh
+echo "  ssh を再読み込みしました。"
 echo ""
 
 echo "======================================================"
