@@ -46,13 +46,30 @@ git clone https://github.com/nagayon-935/Conduit.git
 cd Conduit
 ```
 
-### 2. Vault を起動
+### 2. vault-data ディレクトリのパーミッションを設定
+
+Vault コンテナは UID 100 (vault ユーザー) で動作します。ホスト側のデータディレクトリの所有者を合わせておかないと起動に失敗します。
+
+```bash
+sudo chown -R 100:100 ~/conduit/vault-data
+```
+
+> `docker logs conduit-vault` に `permission denied` が出る場合はこの手順が抜けています。
+
+### 3. Vault を起動
 
 ```bash
 docker compose -f docker-compose.vault.yml up -d
 ```
 
-### 3. Vault を初期化
+起動を確認:
+
+```bash
+docker logs -f conduit-vault
+# "==> Vault server started!" が表示されたら OK（Ctrl+C で抜ける）
+```
+
+### 4. Vault を初期化
 
 ```bash
 bash scripts/vault-init-prod.sh
@@ -67,7 +84,17 @@ bash scripts/vault-init-prod.sh
 
 スクリプト終了後に表示される `VAULT_TOKEN` の値を控えておいてください。
 
-### 4. ファイアウォール設定
+### 5. 自動 Unseal のセットアップ（推奨）
+
+VM 再起動後に自動で Unseal されるよう設定します:
+
+```bash
+sudo bash scripts/vault-auto-unseal-setup.sh
+```
+
+手順 4 で控えた Unseal Key を入力します（通常 3 つ）。
+
+### 6. ファイアウォール設定
 
 Vault はラボ内ネットワークのみアクセスできるように制限します:
 
@@ -267,6 +294,71 @@ docker compose -f docker-compose.prod.yml up -d --build
 
 ## トラブルシューティング
 
+### Vault が起動しない（permission denied）
+
+`docker logs conduit-vault` に以下が出る場合:
+
+```
+storage migration check error: error="open /vault/data/core/_migration: permission denied"
+```
+
+vault-data ディレクトリの所有者が合っていません:
+
+```bash
+docker compose -f docker-compose.vault.yml down
+sudo chown -R 100:100 ~/conduit/vault-data
+docker compose -f docker-compose.vault.yml up -d
+```
+
+### Vault の再初期化（データを完全にリセットする場合）
+
+```bash
+# 1. コンテナとボリュームを削除
+docker compose -f docker-compose.vault.yml down -v
+
+# 2. vault-data を削除して再作成
+sudo rm -rf ~/conduit/vault-data
+mkdir -p ~/conduit/vault-data
+sudo chown -R 100:100 ~/conduit/vault-data
+
+# 3. 起動
+docker compose -f docker-compose.vault.yml up -d
+
+# 4. 起動確認（"Vault server started!" が出るまで待つ）
+docker logs -f conduit-vault
+
+# 5. 初期化
+bash scripts/vault-init-prod.sh
+
+# 6. 自動 Unseal の再セットアップ
+sudo bash scripts/vault-auto-unseal-setup.sh
+```
+
+> ⚠️ 再初期化すると CA が再生成されます。接続先 SSH サーバーの `/etc/ssh/trusted-ca.pub` も更新が必要です。
+
+### vault-init-prod.sh が "Vault が起動していません" でループする
+
+Vault がまだポート 8200 でリッスンしていません。ログを確認してから再実行してください:
+
+```bash
+docker logs conduit-vault          # エラーがないか確認
+curl http://localhost:8200/v1/sys/health  # 応答があれば起動済み
+bash scripts/vault-init-prod.sh
+```
+
+### Vault が Sealed
+
+```bash
+docker exec conduit-vault vault status
+docker exec conduit-vault vault operator unseal  # ×3回
+```
+
+自動 Unseal が設定済みの場合は以下でも可:
+
+```bash
+sudo systemctl start vault-auto-unseal.service
+```
+
 ### 502 Bad Gateway
 
 Conduit バックエンドが起動していない可能性があります:
@@ -280,10 +372,3 @@ docker compose -f docker-compose.prod.yml logs backend
 1. Vault が Unseal されているか確認: `curl http://<VM②のIP>:8200/v1/sys/health`
 2. SSH サーバーに CA 公開鍵が設定されているか確認
 3. 接続ユーザーが SSH サーバーに存在するか確認
-
-### Vault が Sealed
-
-```bash
-docker exec conduit-vault vault status
-docker exec conduit-vault vault operator unseal  # ×3回
-```
