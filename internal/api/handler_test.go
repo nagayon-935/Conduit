@@ -437,6 +437,23 @@ func TestCORSHeaders(t *testing.T) {
 }
 
 // TestCORSPreflight は OPTIONS プリフライトリクエストに 204 を返すことを検証する。
+func TestCORSPreflight(t *testing.T) {
+	t.Parallel()
+
+	handler := newTestHandler(mockVaultOK(), mockDialerOK())
+	req := httptest.NewRequest(http.MethodOptions, "/api/connect", nil)
+	w := httptest.NewRecorder()
+	handler.ServeHTTP(w, req)
+
+	if w.Code != http.StatusNoContent {
+		t.Fatalf("status = %d, want 204", w.Code)
+	}
+}
+
+// ============================================================
+// GET /ws のテスト（成功系）
+// ============================================================
+
 // TestHandleTerminal_Success は有効な token でアクセスした場合に
 // WebSocket アップグレードが成功し、SSH クライアントとの通信が開始されることを検証する。
 func TestHandleTerminal_Success(t *testing.T) {

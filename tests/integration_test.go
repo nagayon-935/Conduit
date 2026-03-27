@@ -37,8 +37,7 @@ func genEd25519(t *testing.T) ed25519.PrivateKey {
 	return priv
 }
 
-func signSSHCert(t *testing.T, pub gossh.PublicKey, caSigner gossh.Signer, principals []string) string {
-	t.Helper()
+func signSSHCert(pub gossh.PublicKey, caSigner gossh.Signer, principals []string) (string, error) {
 	cert := &gossh.Certificate{
 		Key:             pub,
 		CertType:        gossh.UserCert,
@@ -47,9 +46,9 @@ func signSSHCert(t *testing.T, pub gossh.PublicKey, caSigner gossh.Signer, princ
 		ValidBefore:     gossh.CertTimeInfinity,
 	}
 	if err := cert.SignCert(rand.Reader, caSigner); err != nil {
-		t.Fatalf("signSSHCert: %v", err)
+		return "", fmt.Errorf("signSSHCert: %w", err)
 	}
-	return string(gossh.MarshalAuthorizedKey(cert))
+	return string(gossh.MarshalAuthorizedKey(cert)), nil
 }
 
 // mockVaultServer returns an httptest.Server that parses the public_key from the
@@ -83,7 +82,11 @@ func mockVaultServer(t *testing.T, caPriv gossh.Signer, principals []string) *ht
 			usePrincipals = strings.Split(body.ValidPrincipals, ",")
 		}
 
-		certStr := signSSHCert(t, pub, caPriv, usePrincipals)
+		certStr, err := signSSHCert(pub, caPriv, usePrincipals)
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
 		resp := map[string]any{
 			"data": map[string]string{
 				"signed_key": certStr,
