@@ -1,7 +1,9 @@
 /* ── Page wrapper ────────────────────────────────────────────────────── */
 .cf-page {
   display: flex;
-  align-items: center;
+  /* align-items: flex-start にしてページ全体をスクロール可能にする。
+     コンテナが短い場合の縦中央揃えは cf-container の margin: auto で実現 */
+  align-items: flex-start;
   justify-content: center;
   min-height: 100vh;
   background: #1a1b26;
@@ -16,6 +18,8 @@
   flex-direction: column;
   align-items: center;
   gap: clamp(24px, 3vh, 44px);
+  /* コンテンツが短い場合は margin: auto で縦中央揃え */
+  margin: auto 0;
 }
 
 /* ── Hero ────────────────────────────────────────────────────────────── */
@@ -401,6 +405,17 @@ input[type='number'] { -moz-appearance: textfield; appearance: textfield; }
   display: flex;
   flex-direction: column;
   gap: clamp(5px, 0.5vh, 8px);
+  max-height: clamp(220px, 28vh, 340px);
+  overflow-y: auto;
+  /* スクロールバーのスタイル */
+  scrollbar-width: thin;
+  scrollbar-color: #2a2c3d transparent;
+}
+.cf-profiles-list::-webkit-scrollbar { width: 4px; }
+.cf-profiles-list::-webkit-scrollbar-track { background: transparent; }
+.cf-profiles-list::-webkit-scrollbar-thumb {
+  background: #2a2c3d;
+  border-radius: 2px;
 }
 
 .cf-profile-item {
