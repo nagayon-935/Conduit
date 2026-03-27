@@ -16,7 +16,9 @@ services:
     command: vault server -config=/vault/config/vault.hcl
     restart: unless-stopped
     healthcheck:
-      test: ["CMD", "vault", "status", "-address=http://127.0.0.1:8200"]
+      # vault status の終了コード: 0=正常, 1=接続エラー, 2=sealed/未初期化
+      # 2 は「起動しているが未初期化」を意味するため healthy 扱いにする
+      test: ["CMD-SHELL", "vault status -address=http://127.0.0.1:8200; [ $? -ne 1 ]"]
       interval: 10s
       timeout: 5s
       retries: 5

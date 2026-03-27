@@ -15,7 +15,7 @@ echo ""
 
 # ── Step 1: Vault の起動確認 ───────────────────────────────────────────────
 echo "[1/6] Vault の起動を確認中..."
-until curl -sf "${VAULT_ADDR}/v1/sys/health" > /dev/null 2>&1; do
+until curl -s "${VAULT_ADDR}/v1/sys/health" > /dev/null 2>&1; do
   echo "  Vault が起動していません。5秒後にリトライします..."
   sleep 5
 done
