@@ -43,7 +43,7 @@ func TestLoad_AllFields(t *testing.T) {
 func TestLoad_Defaults(t *testing.T) {
 	setAllRequired(t, "http://vault.test:8200", "tok", "role")
 	// オプション項目はセットしない → デフォルト値が使われるはず
-	t.Setenv("SERVER_ADDR", "")
+	t.Setenv("SERVER_PORT", "")
 	t.Setenv("VAULT_SSH_MOUNT", "")
 
 	cfg, err := config.Load()
@@ -68,7 +68,7 @@ func TestLoad_Defaults(t *testing.T) {
 // TestLoad_OverrideDefaults はオプション項目を明示的に上書きできることを検証する。
 func TestLoad_OverrideDefaults(t *testing.T) {
 	setAllRequired(t, "http://vault.test:8200", "tok", "role")
-	t.Setenv("SERVER_ADDR", ":9090")
+	t.Setenv("SERVER_PORT", "9090")
 	t.Setenv("VAULT_SSH_MOUNT", "custom-ssh")
 
 	cfg, err := config.Load()

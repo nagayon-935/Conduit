@@ -83,7 +83,7 @@ GET /ws?token=<token>
 | `VAULT_TOKEN` | ✅ | — | Vault アクセストークン |
 | `VAULT_SSH_ROLE` | ✅ | — | SSH 署名ロール名 |
 | `VAULT_SSH_MOUNT` | | `ssh` | Vault SSH Secrets Engine マウントパス |
-| `SERVER_ADDR` | | `:8080` | HTTP リッスンアドレス |
+| `SERVER_PORT` | | `8080` | HTTP リッスンポート |
 | `GRACE_PERIOD` | | `15m` | 切断後のセッション保持期間 |
 | `SESSION_GC_INTERVAL` | | `1m` | 期限切れセッション GC 間隔 |
 

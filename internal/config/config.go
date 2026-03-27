@@ -26,8 +26,8 @@ func Load() (*Config, error) {
 		SessionGCInterval: 1 * time.Minute,
 	}
 
-	if v := os.Getenv("SERVER_ADDR"); v != "" {
-		cfg.ServerAddr = v
+	if v := os.Getenv("SERVER_PORT"); v != "" {
+		cfg.ServerAddr = ":" + v
 	}
 
 	cfg.VaultAddr = os.Getenv("VAULT_ADDR")

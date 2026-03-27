@@ -199,7 +199,7 @@ WebSocket が切断されても **15 分間**はサーバー側で SSH セッシ
 | `VAULT_TOKEN` | ✅ | — | Vault アクセストークン |
 | `VAULT_SSH_ROLE` | ✅ | — | SSH 署名に使用するロール名 |
 | `VAULT_SSH_MOUNT` | | `ssh` | Vault SSH Secrets Engine のマウントパス |
-| `SERVER_ADDR` | | `:8080` | HTTP サーバーのリッスンアドレス |
+| `SERVER_PORT` | | `8080` | HTTP サーバーのリッスンポート |
 | `GRACE_PERIOD` | | `15m` | WebSocket 切断後にセッションを保持する期間 |
 | `SESSION_GC_INTERVAL` | | `1m` | 期限切れセッションの GC 実行間隔 |
 
