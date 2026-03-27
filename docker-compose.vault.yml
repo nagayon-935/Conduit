@@ -10,7 +10,7 @@ services:
       - "8200:8200"
     volumes:
       - ./docker/vault-prod/vault.hcl:/vault/config/vault.hcl:ro
-      - vault-data:/vault/data
+      - ./vault-data:/vault/data
     cap_add:
       - IPC_LOCK
     command: vault server -config=/vault/config/vault.hcl
@@ -24,6 +24,3 @@ services:
       retries: 5
       start_period: 10s
 
-volumes:
-  vault-data:
-    driver: local
