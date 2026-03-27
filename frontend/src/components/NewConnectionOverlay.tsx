@@ -203,8 +203,10 @@ export function NewConnectionOverlay({
                   onClick={() => fillFromHistory(entry)}
                   title={`${entry.host}:${entry.port} as ${entry.user}`}
                 >
-                  {entry.user}@{entry.host}
-                  {entry.port !== 22 ? `:${entry.port}` : ''}
+                  {(() => {
+                    const matched = profiles.find(p => p.host === entry.host && p.port === entry.port && p.user === entry.user);
+                    return matched ? matched.name : `${entry.user}@${entry.host}${entry.port !== 22 ? `:${entry.port}` : ''}`;
+                  })()}
                 </button>
               ))}
             </div>

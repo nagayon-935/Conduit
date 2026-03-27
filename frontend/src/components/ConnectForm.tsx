@@ -343,7 +343,10 @@ export function ConnectForm({
                       disabled={isLoading}
                       title={`${h.host}:${h.port} · ${h.user}`}
                     >
-                      {h.user}@{h.host}{h.port !== 22 ? `:${h.port}` : ''}
+                      {(() => {
+                        const matched = profiles.find(p => p.host === h.host && p.port === h.port && p.user === h.user);
+                        return matched ? matched.name : `${h.user}@${h.host}${h.port !== 22 ? `:${h.port}` : ''}`;
+                      })()}
                     </button>
                   ))}
                 </div>
@@ -469,8 +472,20 @@ export function ConnectForm({
                     onClick={() => handleHistoryClick(entry)}
                     onKeyDown={(e) => e.key === 'Enter' && handleHistoryClick(entry)}
                   >
-                    <span className="cf-history-host">{entry.host}:{entry.port}</span>
-                    <span className="cf-history-user">as {entry.user}</span>
+                    {(() => {
+                      const matched = profiles.find(p => p.host === entry.host && p.port === entry.port && p.user === entry.user);
+                      return matched ? (
+                        <>
+                          <span className="cf-history-host">{matched.name}</span>
+                          <span className="cf-history-user">{entry.host}:{entry.port} · {entry.user}</span>
+                        </>
+                      ) : (
+                        <>
+                          <span className="cf-history-host">{entry.host}:{entry.port}</span>
+                          <span className="cf-history-user">as {entry.user}</span>
+                        </>
+                      );
+                    })()}
                   </li>
                 ))}
               </ul>
