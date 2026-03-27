@@ -258,6 +258,7 @@ export default function App() {
         layoutType={layoutType}
         paneTabIds={paneTabIds}
         onLayoutChange={switchLayout}
+        profiles={profiles}
       />
 
       {/* ── Layout: single ── */}

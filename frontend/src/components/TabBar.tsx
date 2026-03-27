@@ -1,4 +1,4 @@
-import type { LayoutType } from '../types';
+import type { LayoutType, Profile } from '../types';
 import './TabBar.css';
 
 export interface Tab {
@@ -17,9 +17,12 @@ interface TabBarProps {
   layoutType: LayoutType;
   paneTabIds: (string | null)[];
   onLayoutChange: (layout: LayoutType) => void;
+  profiles?: Profile[];
 }
 
-function tabLabel(tab: Tab): string {
+function tabLabel(tab: Tab, profiles: Profile[] = []): string {
+  const matched = profiles.find(p => p.host === tab.host && p.port === tab.port && p.user === tab.user);
+  if (matched) return matched.name;
   const portSuffix = tab.port === 22 ? '' : `:${tab.port}`;
   return `${tab.user}@${tab.host}${portSuffix}`;
 }
@@ -51,6 +54,7 @@ export function TabBar({
   layoutType,
   paneTabIds,
   onLayoutChange,
+  profiles = [],
 }: TabBarProps) {
   const isInSplit = layoutType !== '1';
 
@@ -75,12 +79,12 @@ export function TabBar({
               role="tab"
               aria-selected={false}
               onClick={() => onSelect(tab.id)}
-              title={tabLabel(tab)}
+              title={tabLabel(tab, profiles)}
             >
-              <span>{tabLabel(tab)}</span>
+              <span>{tabLabel(tab, profiles)}</span>
               <button
                 className="tab-close"
-                aria-label={`Close ${tabLabel(tab)}`}
+                aria-label={`Close ${tabLabel(tab, profiles)}`}
                 onClick={(e) => { e.stopPropagation(); onClose(tab.id); }}
               >✕</button>
             </div>
@@ -93,10 +97,10 @@ export function TabBar({
               {paneSessions.map((tab, i) => (
                 <span key={tab.id} className="tab-split-group-entry">
                   {i > 0 && <span className="tab-split-group-sep" aria-hidden="true">│</span>}
-                  <span>{tabLabel(tab)}</span>
+                  <span>{tabLabel(tab, profiles)}</span>
                   <button
                     className="tab-close"
-                    aria-label={`Close ${tabLabel(tab)}`}
+                    aria-label={`Close ${tabLabel(tab, profiles)}`}
                     onClick={(e) => { e.stopPropagation(); onClose(tab.id); }}
                   >✕</button>
                 </span>
@@ -115,12 +119,12 @@ export function TabBar({
               role="tab"
               aria-selected={isActive}
               onClick={() => onSelect(tab.id)}
-              title={tabLabel(tab)}
+              title={tabLabel(tab, profiles)}
             >
-              <span>{tabLabel(tab)}</span>
+              <span>{tabLabel(tab, profiles)}</span>
               <button
                 className="tab-close"
-                aria-label={`Close ${tabLabel(tab)}`}
+                aria-label={`Close ${tabLabel(tab, profiles)}`}
                 onClick={(e) => { e.stopPropagation(); onClose(tab.id); }}
               >✕</button>
             </div>
