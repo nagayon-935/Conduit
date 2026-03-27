@@ -48,7 +48,6 @@ export function Terminal({ sessionToken, host, port, user, expiresAt, onDisconne
     onError: handleError,
   });
 
-
   // Init terminal on mount, then connect WebSocket once terminal is ready
   useEffect(() => {
     initTerminal();
@@ -66,7 +65,7 @@ export function Terminal({ sessionToken, host, port, user, expiresAt, onDisconne
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [terminal]);
 
-  // Feature ③: Font size keyboard shortcut + toast
+  // Font size keyboard shortcut + toast
   const [fontSizeToast, setFontSizeToast] = useState<number | null>(null);
   const toastTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -76,32 +75,31 @@ export function Terminal({ sessionToken, host, port, user, expiresAt, onDisconne
     toastTimerRef.current = setTimeout(() => setFontSizeToast(null), 1500);
   }
 
-  useEffect(() => {
-    function handleKeyDown(e: KeyboardEvent) {
-      if (e.ctrlKey && (e.code === 'Equal' || e.key === '+')) {
-        e.preventDefault();
-        changeFontSize(1);
-        const current = terminal?.options.fontSize ?? 14;
-        showFontSizeToast(Math.min(32, current + 1));
-      } else if (e.ctrlKey && (e.code === 'Minus' || e.key === '-')) {
-        e.preventDefault();
-        changeFontSize(-1);
-        const current = terminal?.options.fontSize ?? 14;
-        showFontSizeToast(Math.max(8, current - 1));
-      }
-    }
-    window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [changeFontSize, terminal]);
-
-  // Feature ⑧: Search overlay
+  // Search overlay state
   const [searchOpen, setSearchOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [searchResultMsg, setSearchResultMsg] = useState('');
   const searchInputRef = useRef<HTMLInputElement>(null);
 
+  // Unified keyboard shortcut handler (font size + search)
   useEffect(() => {
     function handleKeyDown(e: KeyboardEvent) {
+      // Font size: Ctrl+= / Ctrl+-
+      if (e.ctrlKey && (e.code === 'Equal' || e.key === '+')) {
+        e.preventDefault();
+        changeFontSize(1);
+        const current = terminal?.options.fontSize ?? 14;
+        showFontSizeToast(Math.min(32, current + 1));
+        return;
+      }
+      if (e.ctrlKey && (e.code === 'Minus' || e.key === '-')) {
+        e.preventDefault();
+        changeFontSize(-1);
+        const current = terminal?.options.fontSize ?? 14;
+        showFontSizeToast(Math.max(8, current - 1));
+        return;
+      }
+      // Search: Ctrl+F toggle, Escape close
       if (e.ctrlKey && e.key === 'f') {
         e.preventDefault();
         setSearchOpen((prev) => {
@@ -110,6 +108,7 @@ export function Terminal({ sessionToken, host, port, user, expiresAt, onDisconne
           }
           return !prev;
         });
+        return;
       }
       if (e.key === 'Escape') {
         setSearchOpen(false);
@@ -117,7 +116,7 @@ export function Terminal({ sessionToken, host, port, user, expiresAt, onDisconne
     }
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, []);
+  }, [changeFontSize, terminal]);
 
   function handleSearchNext() {
     if (!searchQuery) return;
@@ -181,7 +180,7 @@ export function Terminal({ sessionToken, host, port, user, expiresAt, onDisconne
         </div>
 
         <div className="status-right">
-          {/* Feature ⑦: Theme selector */}
+          {/* Theme selector */}
           <select
             className="theme-select"
             value={currentThemeKey}
@@ -206,14 +205,14 @@ export function Terminal({ sessionToken, host, port, user, expiresAt, onDisconne
 
       <div className="terminal-container" ref={terminalRef} />
 
-      {/* Feature ③: Font size toast */}
+      {/* Font size toast */}
       {fontSizeToast !== null && (
         <div className="font-size-toast">
           Font size: {fontSizeToast}px
         </div>
       )}
 
-      {/* Feature ⑧: Search overlay */}
+      {/* Search overlay */}
       {searchOpen && (
         <div className="search-overlay">
           <input

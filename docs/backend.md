@@ -40,10 +40,11 @@ internal/
 │   ├── pump.go          # WebSocket ↔ SSH ストリームの双方向ブリッジ
 │   ├── backpressure.go  # SSH→クライアント方向のバックプレッシャー制御
 │   └── pty.go           # PTY リサイズ処理
-├── connlog/
-│   └── store.go         # 接続ログの記録・取得（インメモリ）
-└── pkg/token/
-    └── token.go         # セッショントークン生成（crypto/rand ベース）
+└── connlog/
+    └── store.go         # 接続ログの記録・取得（インメモリ）
+
+pkg/token/
+└── token.go             # セッショントークン生成（crypto/rand ベース）
 ```
 
 ## API エンドポイント

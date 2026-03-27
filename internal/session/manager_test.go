@@ -16,7 +16,7 @@ func testConfig() *config.Config {
 
 // newTestSession builds a minimal Session with the given token (no real SSH client/session).
 func newTestSession(token string) *Session {
-	return NewSession(token, "", 0, "", nil, nil, nil, nil)
+	return NewSession(token, "", 0, "", nil, nil, nil, nil, 15*time.Minute)
 }
 
 func TestSessionManager_CreateAndGet(t *testing.T) {
@@ -197,12 +197,12 @@ func TestSession_Done_ClosedAfterClose(t *testing.T) {
 	}
 }
 
-// TestSession_GetWebSocket_InitiallyNil checks that a new session has no WebSocket.
-func TestSession_GetWebSocket_InitiallyNil(t *testing.T) {
+// TestSession_ActiveWSCount_InitiallyZero checks that a new session has no WebSocket connections.
+func TestSession_ActiveWSCount_InitiallyZero(t *testing.T) {
 	t.Parallel()
-	s := newTestSession("ws-nil-test")
-	if ws := s.GetWebSocket(); ws != nil {
-		t.Errorf("expected nil WebSocket on new session, got %v", ws)
+	s := newTestSession("ws-count-test")
+	if count := s.ActiveWSCount(); count != 0 {
+		t.Errorf("expected 0 WebSocket connections on new session, got %d", count)
 	}
 }
 
@@ -239,11 +239,12 @@ func TestSession_IsExpired_True(t *testing.T) {
 	}
 }
 
-// TestSession_DetachWebSocket_SetsStateDisconnected verifies DetachWebSocket transitions the state.
-func TestSession_DetachWebSocket_SetsStateDisconnected(t *testing.T) {
+// TestSession_RemoveWebSocket_SetsStateDisconnected verifies RemoveWebSocket transitions the state.
+func TestSession_RemoveWebSocket_SetsStateDisconnected(t *testing.T) {
 	t.Parallel()
 	s := newTestSession("detach-test")
-	s.DetachWebSocket()
+	s.AddWebSocket("conn1", nil)
+	s.RemoveWebSocket("conn1")
 	if s.State != StateDisconnected {
 		t.Errorf("state = %v, want StateDisconnected", s.State)
 	}

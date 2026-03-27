@@ -23,7 +23,7 @@ Browser (xterm.js)
     ▼
 Go HTTP Server
     ├─ POST /api/connect   → Vault で証明書発行 → SSH 接続確立 → セッション生成
-    └─ GET  /ws/terminal   → WebSocket ↔ SSH ストリームブリッジ
+    └─ GET  /ws            → WebSocket ↔ SSH ストリームブリッジ
          │
          ▼
     Target SSH Server  (証明書認証)
@@ -284,7 +284,7 @@ SSH 接続を確立してセッションを作成します。
 }
 ```
 
-### `GET /ws/terminal?token=<session_token>`
+### `GET /ws?token=<session_token>`
 
 WebSocket にアップグレードして双方向ターミナルストリームを開きます。
 

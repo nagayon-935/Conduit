@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import type { LayoutType, Profile } from '../types';
+import { matchProfile } from '../utils/form';
 import './TabBar.css';
 
 export interface Tab {
@@ -20,13 +21,6 @@ interface TabBarProps {
   onLayoutChange: (layout: LayoutType) => void;
   profiles?: Profile[];
   onReorder?: (fromId: string, toId: string) => void;
-}
-
-function matchProfile(profiles: Profile[], host: string, port: number, user: string): Profile | undefined {
-  return (
-    profiles.find(p => p.host === host && p.port === port && p.user === user) ??
-    profiles.find(p => p.host === host && p.port === port && p.user === '')
-  );
 }
 
 function tabLabel(tab: Tab, profiles: Profile[] = []): string {

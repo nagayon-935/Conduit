@@ -28,7 +28,7 @@ export type WsControlMessage =
   | { type: 'error'; message: string }
   | { type: 'exit' };
 
-export type AppState = 'idle' | 'connecting' | 'connected' | 'disconnected' | 'error';
+export type AppState = 'idle' | 'connecting';
 
 /** Terminal pane layout: single / side-by-side / top-bottom / 2×2 grid */
 export type LayoutType = '1' | '2v' | '2h' | '4';

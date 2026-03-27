@@ -11,7 +11,7 @@ import { useConnectionHistory } from './hooks/useConnectionHistory';
 import { useProfiles } from './hooks/useProfiles';
 import './App.css';
 
-type ActiveAppState = 'idle' | 'connecting' | 'sessions' | 'logs';
+type ViewState = 'main' | 'sessions' | 'logs';
 
 interface SessionTab {
   id: string;
@@ -23,7 +23,8 @@ interface SessionTab {
 }
 
 export default function App() {
-  const [appState, setAppState] = useState<ActiveAppState>('idle');
+  const [appState, setAppState] = useState<AppState>('idle');
+  const [viewState, setViewState] = useState<ViewState>('main');
   const [tabs, setTabs] = useState<SessionTab[]>([]);
   const [activeTabId, setActiveTabId] = useState<string | null>(null);
   const [showOverlay, setShowOverlay] = useState(false);
@@ -124,6 +125,7 @@ export default function App() {
       addEntry(host, port, user, authType);
       setShowOverlay(false);
       setAppState('idle');
+      setViewState('main');
 
       // Fill first empty pane slot when in split mode
       if (layoutType !== '1') {
@@ -191,9 +193,7 @@ export default function App() {
   }, []);
 
   const handleStateChange = useCallback((state: AppState) => {
-    if (state === 'idle' || state === 'connecting') {
-      setAppState(state as ActiveAppState);
-    }
+    setAppState(state);
   }, []);
 
   // ── Helper: render one pane ─────────────────────────────────────────────
@@ -220,23 +220,23 @@ export default function App() {
   }
 
   // ── Views: sessions / logs ──────────────────────────────────────────────
-  if (appState === 'sessions') {
-    return <SessionList onBack={() => setAppState('idle')} />;
+  if (viewState === 'sessions') {
+    return <SessionList onBack={() => setViewState('main')} />;
   }
-  if (appState === 'logs') {
-    return <LogPage onBack={() => setAppState('idle')} />;
+  if (viewState === 'logs') {
+    return <LogPage onBack={() => setViewState('main')} />;
   }
 
   // ── View: no tabs — show ConnectForm ────────────────────────────────────
   if (tabs.length === 0) {
     return (
       <ConnectForm
-        appState={appState === 'idle' || appState === 'connecting' ? appState : 'idle'}
+        appState={appState}
         onConnect={handleConnect}
         onStateChange={handleStateChange}
         history={history}
-        onShowSessions={() => setAppState('sessions')}
-        onShowLogs={() => setAppState('logs')}
+        onShowSessions={() => setViewState('sessions')}
+        onShowLogs={() => setViewState('logs')}
       />
     );
   }

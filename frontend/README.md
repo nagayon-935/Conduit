@@ -35,6 +35,7 @@ src/
 │   ├── useProfiles.ts        # 接続プロファイル（localStorage）
 │   └── useConnectionHistory.ts  # 接続履歴（localStorage）
 ├── utils/
+│   ├── form.ts               # 共通フォームフィールド型・バリデーション・プロファイルマッチ
 │   ├── parseSshConfig.ts     # ~/.ssh/config パーサー
 │   ├── storage.ts            # localStorage ラッパー
 │   └── session.ts            # セッション状態の永続化

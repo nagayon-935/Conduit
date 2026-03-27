@@ -12,7 +12,6 @@ import (
 )
 
 const (
-	GracePeriod        = 15 * time.Minute
 	ToClientBufSize    = 256
 	FromClientBufSize  = 64
 	tokenPreviewLength = 8 // characters shown in Info() before "..."
@@ -58,6 +57,8 @@ type Session struct {
 	ctx    context.Context
 	cancel context.CancelFunc
 
+	gracePeriod time.Duration
+
 	wsConns   map[string]*websocket.Conn
 	wsNotify  map[string]chan struct{}
 	pumpsOnce sync.Once
@@ -65,28 +66,29 @@ type Session struct {
 	mu sync.RWMutex
 }
 
-func NewSession(token, host string, port int, user string, client *ssh.Client, sshSess *ssh.Session, stdin io.WriteCloser, stdout io.Reader) *Session {
+func NewSession(token, host string, port int, user string, client *ssh.Client, sshSess *ssh.Session, stdin io.WriteCloser, stdout io.Reader, gracePeriod time.Duration) *Session {
 	now := time.Now()
 	ctx, cancel := context.WithCancel(context.Background())
 	return &Session{
-		Token:      token,
-		Host:       host,
-		Port:       port,
-		User:       user,
-		CreatedAt:  now,
-		ExpiresAt:  now.Add(GracePeriod),
-		SSHClient:  client,
-		SSHSession: sshSess,
-		Stdin:      stdin,
-		Stdout:     stdout,
-		ToClient:   make(chan []byte, ToClientBufSize),
-		FromClient: make(chan []byte, FromClientBufSize),
-		State:      StateDisconnected,
-		done:       make(chan struct{}),
-		ctx:        ctx,
-		cancel:     cancel,
-		wsConns:    make(map[string]*websocket.Conn),
-		wsNotify:   make(map[string]chan struct{}),
+		Token:       token,
+		Host:        host,
+		Port:        port,
+		User:        user,
+		CreatedAt:   now,
+		ExpiresAt:   now.Add(gracePeriod),
+		SSHClient:   client,
+		SSHSession:  sshSess,
+		Stdin:       stdin,
+		Stdout:      stdout,
+		ToClient:    make(chan []byte, ToClientBufSize),
+		FromClient:  make(chan []byte, FromClientBufSize),
+		State:       StateDisconnected,
+		done:        make(chan struct{}),
+		ctx:         ctx,
+		cancel:      cancel,
+		gracePeriod: gracePeriod,
+		wsConns:     make(map[string]*websocket.Conn),
+		wsNotify:    make(map[string]chan struct{}),
 	}
 }
 
@@ -143,7 +145,7 @@ func (s *Session) AddWebSocket(connID string, ws *websocket.Conn) <-chan struct{
 	s.wsConns[connID] = ws
 	s.wsNotify[connID] = notify
 	s.State = StateConnected
-	s.ExpiresAt = time.Now().Add(GracePeriod)
+	s.ExpiresAt = time.Now().Add(s.gracePeriod)
 	return notify
 }
 
@@ -154,7 +156,7 @@ func (s *Session) RemoveWebSocket(connID string) {
 	delete(s.wsNotify, connID)
 	if len(s.wsConns) == 0 && s.State != StateTerminated {
 		s.State = StateDisconnected
-		s.ExpiresAt = time.Now().Add(GracePeriod)
+		s.ExpiresAt = time.Now().Add(s.gracePeriod)
 	}
 	s.mu.Unlock()
 
@@ -214,35 +216,3 @@ func (s *Session) Info() SessionInfo {
 	}
 }
 
-// ── Backward-compatibility aliases ───────────────────────────────────────────
-
-const legacyConnID = "_default"
-
-func (s *Session) SetWebSocket(ws *websocket.Conn) {
-	s.AddWebSocket(legacyConnID, ws)
-}
-
-func (s *Session) DetachWebSocket() {
-	s.RemoveWebSocket(legacyConnID)
-}
-
-func (s *Session) GetWebSocket() *websocket.Conn {
-	s.mu.RLock()
-	defer s.mu.RUnlock()
-	for _, ws := range s.wsConns {
-		return ws
-	}
-	return nil
-}
-
-func (s *Session) WebSocketDetached() <-chan struct{} {
-	s.mu.RLock()
-	ch, ok := s.wsNotify[legacyConnID]
-	s.mu.RUnlock()
-	if ok {
-		return ch
-	}
-	closed := make(chan struct{})
-	close(closed)
-	return closed
-}

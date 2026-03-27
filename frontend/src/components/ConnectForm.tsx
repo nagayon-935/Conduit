@@ -1,9 +1,9 @@
 import { useState, useRef, type FormEvent } from 'react';
 import { connectToHost } from '../api/connect';
-import type { AppState, AuthType } from '../types';
-import type { HistoryEntry } from '../types';
+import type { AppState, AuthType, HistoryEntry } from '../types';
 import { useProfiles } from '../hooks/useProfiles';
 import { parseSshConfig } from '../utils/parseSshConfig';
+import { type FormFields, defaultFields, validateForm, buildConnectRequest, matchProfile } from '../utils/form';
 import './ConnectForm.css';
 
 interface ConnectFormProps {
@@ -15,25 +15,6 @@ interface ConnectFormProps {
   onShowLogs?: () => void;
 }
 
-interface FormFields {
-  host: string;
-  port: string;
-  user: string;
-  authType: AuthType;
-  password: string;
-  privateKey: string;
-}
-
-function validateForm(fields: FormFields): string | null {
-  if (!fields.host.trim()) return 'Host is required.';
-  const portNum = parseInt(fields.port, 10);
-  if (isNaN(portNum) || portNum < 1 || portNum > 65535) return 'Port must be between 1 and 65535.';
-  if (!fields.user.trim()) return 'Username is required.';
-  if (fields.authType === 'password' && !fields.password.trim()) return 'Password is required.';
-  if (fields.authType === 'pubkey' && !fields.privateKey.trim()) return 'Private key is required.';
-  return null;
-}
-
 const FEATURES = [
   { icon: '⚡', text: 'Short-lived certs' },
   { icon: '🔄', text: 'Grace period' },
@@ -41,8 +22,6 @@ const FEATURES = [
   { icon: '🔐', text: 'In-memory keys' },
   { icon: '🌐', text: 'Auto-reconnect' },
 ];
-
-const defaultFields = (): FormFields => ({ host: '', port: '22', user: '', authType: 'vault', password: '', privateKey: '' });
 
 export function ConnectForm({
   appState,
@@ -57,7 +36,6 @@ export function ConnectForm({
   const [error, setError] = useState<string | null>(null);
   const isLoading = appState === 'connecting';
 
-  // Feature ④: Connection profiles
   const { profiles, saveProfile, deleteProfile, importProfiles } = useProfiles();
   const [showSaveProfile, setShowSaveProfile] = useState(false);
   const [profileName, setProfileName] = useState('');
@@ -137,7 +115,7 @@ export function ConnectForm({
   }
 
   function addExtraEntry() {
-    setExtraEntries((prev) => [...prev, { host: '', port: '22', user: '', authType: 'vault', password: '', privateKey: '' }]);
+    setExtraEntries((prev) => [...prev, defaultFields()]);
   }
 
   function removeExtraEntry(index: number) {
@@ -204,18 +182,6 @@ export function ConnectForm({
     } else {
       onStateChange('idle');
     }
-  }
-
-  function buildConnectRequest(entry: FormFields) {
-    const port = parseInt(entry.port, 10);
-    const base = { host: entry.host.trim(), port, user: entry.user.trim(), auth_type: entry.authType } as const;
-    if (entry.authType === 'password') {
-      return { ...base, password: entry.password };
-    }
-    if (entry.authType === 'pubkey') {
-      return { ...base, private_key: entry.privateKey };
-    }
-    return base;
   }
 
   function handleSaveProfile() {
@@ -486,7 +452,7 @@ export function ConnectForm({
                       title={`${h.host}:${h.port} · ${h.user}`}
                     >
                       {(() => {
-                        const matched = profiles.find(p => p.host === h.host && p.port === h.port && p.user === h.user) ?? profiles.find(p => p.host === h.host && p.port === h.port && p.user === '');
+                        const matched = matchProfile(profiles, h.host, h.port, h.user);
                         return matched ? matched.name : `${h.user}@${h.host}${h.port !== 22 ? `:${h.port}` : ''}`;
                       })()}
                     </button>
@@ -554,7 +520,7 @@ export function ConnectForm({
           {error && <div className="cf-error" role="alert">{error}</div>}
           {importMessage && <div className="cf-import-message" role="status">{importMessage}</div>}
 
-          {/* Feature ④: Profiles section */}
+          {/* Profiles section */}
           <div className="cf-profiles">
             <div className="cf-profiles-header">
               <p className="cf-profiles-label">Profiles</p>
@@ -615,7 +581,7 @@ export function ConnectForm({
                     onKeyDown={(e) => e.key === 'Enter' && handleHistoryClick(entry)}
                   >
                     {(() => {
-                      const matched = profiles.find(p => p.host === entry.host && p.port === entry.port && p.user === entry.user) ?? profiles.find(p => p.host === entry.host && p.port === entry.port && p.user === '');
+                      const matched = matchProfile(profiles, entry.host, entry.port, entry.user);
                       return matched ? (
                         <>
                           <span className="cf-history-host">{matched.name}</span>

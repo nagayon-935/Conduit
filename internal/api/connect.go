@@ -73,7 +73,7 @@ func (h *Handler) handleConnect(w http.ResponseWriter, r *http.Request) {
 			UserPrivateKey: []byte(req.PrivateKey),
 		}
 	default: // "vault" or ""
-		// Step 1: Generate in-memory ED25519 key pair.
+		// Generate in-memory ED25519 key pair.
 		privateKeyPEM, publicKeyOpenSSH, err := sshconn.GenerateKeyPair()
 		if err != nil {
 			slog.Error("key pair generation failed", "error", err)
@@ -81,7 +81,7 @@ func (h *Handler) handleConnect(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 
-		// Step 2: Sign the public key with Vault.
+		// Sign the public key with Vault.
 		signedCert, err := h.vault.SignPublicKey(r.Context(), publicKeyOpenSSH, req.User)
 		if err != nil {
 			slog.Error("vault signing failed", "error", err)
@@ -106,7 +106,7 @@ func (h *Handler) handleConnect(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Step 4: Generate session token and create the session.
+	// Generate session token and create the session.
 	token, err := pkgtoken.Generate()
 	if err != nil {
 		slog.Error("token generation failed", "error", err)
@@ -116,7 +116,7 @@ func (h *Handler) handleConnect(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	sess := session.NewSession(token, req.Host, req.Port, req.User, sshClient, sshSess, stdin, stdout)
+	sess := session.NewSession(token, req.Host, req.Port, req.User, sshClient, sshSess, stdin, stdout, h.config.GracePeriod)
 	if err := h.sessions.Create(sess); err != nil {
 		slog.Error("session creation failed", "error", err)
 		sess.Close()
@@ -124,7 +124,7 @@ func (h *Handler) handleConnect(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Step 5: Record connection in the log.
+	// Record connection in the log.
 	logID, _ := pkgtoken.Generate()
 	h.logs.Add(&connlog.Entry{
 		ID:          logID,

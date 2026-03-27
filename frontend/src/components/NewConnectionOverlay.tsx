@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef, type FormEvent } from 'react';
 import { connectToHost } from '../api/connect';
 import type { HistoryEntry, Profile, AuthType } from '../types';
+import { type FormFields, defaultFields, validateForm, buildConnectRequest, matchProfile } from '../utils/form';
 import './NewConnectionOverlay.css';
 
 interface NewConnectionOverlayProps {
@@ -9,27 +10,6 @@ interface NewConnectionOverlayProps {
   history?: HistoryEntry[];
   profiles?: Profile[];
 }
-
-interface FormFields {
-  host: string;
-  port: string;
-  user: string;
-  authType: AuthType;
-  password: string;
-  privateKey: string;
-}
-
-function validateForm(fields: FormFields): string | null {
-  if (!fields.host.trim()) return 'Host is required.';
-  const portNum = parseInt(fields.port, 10);
-  if (isNaN(portNum) || portNum < 1 || portNum > 65535) return 'Port must be between 1 and 65535.';
-  if (!fields.user.trim()) return 'Username is required.';
-  if (fields.authType === 'password' && !fields.password.trim()) return 'Password is required.';
-  if (fields.authType === 'pubkey' && !fields.privateKey.trim()) return 'Private key is required.';
-  return null;
-}
-
-const defaultFields = (): FormFields => ({ host: '', port: '22', user: '', authType: 'vault', password: '', privateKey: '' });
 
 export function NewConnectionOverlay({
   onConnect,
@@ -94,18 +74,6 @@ export function NewConnectionOverlay({
       setError(err instanceof Error ? err.message : 'An unexpected error occurred.');
       setIsLoading(false);
     }
-  }
-
-  function buildConnectRequest(f: FormFields) {
-    const port = parseInt(f.port, 10);
-    const base = { host: f.host.trim(), port, user: f.user.trim(), auth_type: f.authType } as const;
-    if (f.authType === 'password') {
-      return { ...base, password: f.password };
-    }
-    if (f.authType === 'pubkey') {
-      return { ...base, private_key: f.privateKey };
-    }
-    return base;
   }
 
   function fillFromHistory(entry: HistoryEntry) {
@@ -297,7 +265,7 @@ export function NewConnectionOverlay({
                   title={`${entry.host}:${entry.port} as ${entry.user}`}
                 >
                   {(() => {
-                    const matched = profiles.find(p => p.host === entry.host && p.port === entry.port && p.user === entry.user) ?? profiles.find(p => p.host === entry.host && p.port === entry.port && p.user === '');
+                    const matched = matchProfile(profiles, entry.host, entry.port, entry.user);
                     return matched ? matched.name : `${entry.user}@${entry.host}${entry.port !== 22 ? `:${entry.port}` : ''}`;
                   })()}
                 </button>
