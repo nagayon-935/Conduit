@@ -47,10 +47,7 @@ export default function App() {
       return;
     }
     const numPanes = newLayout === '4' ? 4 : 2;
-    const orderedIds = [
-      activeTabId,
-      ...tabs.filter((t) => t.id !== activeTabId).map((t) => t.id),
-    ];
+    const orderedIds = tabs.map((t) => t.id);
     const newPanes: (string | null)[] = [null, null, null, null];
     for (let i = 0; i < numPanes; i++) {
       newPanes[i] = orderedIds[i] ?? null;
