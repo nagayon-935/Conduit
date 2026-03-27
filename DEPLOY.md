@@ -220,7 +220,7 @@ sudo bash scripts/vault-auto-unseal-setup.sh
 ```
 
 スクリプトが対話的に以下を行います:
-1. Unseal Key を入力（通常 3 つ）→ `/var/tmp/unseal-keys` に保存（root のみ読み取り可・mode 600）
+1. Unseal Key を入力（通常 3 つ）→ リポジトリ内 `unseal-keys` に保存（root のみ読み取り可・mode 600）
 2. `/usr/local/bin/vault-auto-unseal.sh` を配置
 3. systemd サービス + タイマーを作成・有効化（VM 起動 30 秒後に自動実行）
 
@@ -237,7 +237,7 @@ sudo systemctl start vault-auto-unseal.service
 systemctl status vault-auto-unseal.timer
 ```
 
-> ⚠️ Unseal Key は `/var/tmp/unseal-keys` に平文で保存されます。本番環境では
+> ⚠️ Unseal Key はリポジトリ内 `unseal-keys` に平文で保存されます（`.gitignore` 済み）。本番環境では
 > [HashiCorp Vault Auto Unseal (Transit/KMS)](https://developer.hashicorp.com/vault/docs/configuration/seal) の利用を推奨します。
 
 #### 手動 Unseal（自動 Unseal を設定していない場合）

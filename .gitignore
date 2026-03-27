@@ -18,3 +18,6 @@ frontend/dist/
 # TLS 証明書（自動生成されるためコミットしない）
 nginx/certs/*.crt
 nginx/certs/*.key
+
+# Vault Unseal Keys（シークレットのためコミットしない）
+unseal-keys
