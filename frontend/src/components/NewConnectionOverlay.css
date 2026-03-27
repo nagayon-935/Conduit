@@ -253,3 +253,30 @@
   opacity: 0.4;
   cursor: not-allowed;
 }
+
+/* ── Auth type selector ───────────────────────────────────────────────── */
+.nco-auth-tabs { display: flex; gap: 4px; margin-bottom: 2px; }
+.nco-auth-tab {
+  flex: 1; padding: 6px 0; border-radius: 6px; border: 1px solid #414868;
+  background: transparent; color: #565f89; font-size: 12px; cursor: pointer;
+  transition: all 0.12s;
+}
+.nco-auth-tab.active { background: #414868; color: #c0caf5; border-color: #7aa2f7; }
+.nco-auth-tab:hover:not(.active) { background: #2e3252; color: #a9b1d6; }
+.nco-auth-tab:disabled { opacity: 0.4; cursor: not-allowed; }
+
+/* ── Key textarea ─────────────────────────────────────────────────────── */
+.nco-key-textarea {
+  width: 100%; height: 80px; resize: vertical; font-family: monospace; font-size: 11px;
+  background: #1a1b26; color: #a9b1d6; border: 1px solid #414868; border-radius: 6px;
+  padding: 8px; box-sizing: border-box;
+}
+.nco-key-textarea:focus { outline: none; border-color: #7aa2f7; }
+.nco-key-textarea:disabled { opacity: 0.45; cursor: not-allowed; }
+
+.nco-key-upload-btn {
+  font-size: 11px; padding: 4px 10px; border-radius: 5px; border: 1px solid #414868;
+  background: transparent; color: #565f89; cursor: pointer; margin-top: 4px;
+}
+.nco-key-upload-btn:hover:not(:disabled) { border-color: #7aa2f7; color: #7aa2f7; }
+.nco-key-upload-btn:disabled { opacity: 0.4; cursor: not-allowed; }

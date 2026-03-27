@@ -1,10 +1,12 @@
 import { useState, useCallback } from 'react';
-import type { Profile } from '../types';
+import type { Profile, AuthType } from '../types';
 import { readJSON, writeJSON } from '../utils/storage';
 import { STORAGE_KEYS, MAX_PROFILES } from '../constants';
 
 function loadFromStorage(): Profile[] {
-  return readJSON<Profile[]>(STORAGE_KEYS.PROFILES, []);
+  const raw = readJSON<Profile[]>(STORAGE_KEYS.PROFILES, []);
+  // Default authType to 'vault' for old entries that lack it
+  return raw.map((p) => ({ ...p, authType: p.authType ?? 'vault' }));
 }
 
 function saveToStorage(profiles: Profile[]): void {
@@ -17,22 +19,23 @@ function generateId(): string {
 
 interface UseProfilesReturn {
   profiles: Profile[];
-  saveProfile: (name: string, host: string, port: number, user: string) => void;
+  saveProfile: (name: string, host: string, port: number, user: string, authType: AuthType) => void;
   deleteProfile: (id: string) => void;
   loadProfile: (id: string) => Profile | undefined;
-  importProfiles: (entries: { name: string; host: string; port: number; user: string }[]) => number;
+  importProfiles: (entries: { name: string; host: string; port: number; user: string; authType?: AuthType }[]) => number;
 }
 
 export function useProfiles(): UseProfilesReturn {
   const [profiles, setProfiles] = useState<Profile[]>(loadFromStorage);
 
-  const saveProfile = useCallback((name: string, host: string, port: number, user: string) => {
+  const saveProfile = useCallback((name: string, host: string, port: number, user: string, authType: AuthType) => {
     const newProfile: Profile = {
       id: generateId(),
       name,
       host,
       port,
       user,
+      authType,
       createdAt: new Date().toISOString(),
     };
     setProfiles((prev) => {
@@ -57,7 +60,7 @@ export function useProfiles(): UseProfilesReturn {
 
   // 既存プロフィールと name+host が重複しないものだけを追加し、追加件数を返す
   const importProfiles = useCallback(
-    (entries: { name: string; host: string; port: number; user: string }[]): number => {
+    (entries: { name: string; host: string; port: number; user: string; authType?: AuthType }[]): number => {
       let added = 0;
       setProfiles((prev) => {
         const existingKeys = new Set(prev.map((p) => `${p.name}|${p.host}`));
@@ -69,6 +72,7 @@ export function useProfiles(): UseProfilesReturn {
             host: e.host,
             port: e.port,
             user: e.user,
+            authType: e.authType ?? 'vault',
             createdAt: new Date().toISOString(),
           }));
         added = newProfiles.length;

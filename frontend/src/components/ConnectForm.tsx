@@ -1,6 +1,6 @@
 import { useState, useRef, type FormEvent } from 'react';
 import { connectToHost } from '../api/connect';
-import type { AppState } from '../types';
+import type { AppState, AuthType } from '../types';
 import type { HistoryEntry } from '../types';
 import { useProfiles } from '../hooks/useProfiles';
 import { parseSshConfig } from '../utils/parseSshConfig';
@@ -8,7 +8,7 @@ import './ConnectForm.css';
 
 interface ConnectFormProps {
   appState: AppState;
-  onConnect: (sessionToken: string, expiresAt: string, host: string, port: number, user: string) => void;
+  onConnect: (sessionToken: string, expiresAt: string, host: string, port: number, user: string, authType: AuthType) => void;
   onStateChange: (state: AppState) => void;
   history?: HistoryEntry[];
   onShowSessions?: () => void;
@@ -19,6 +19,9 @@ interface FormFields {
   host: string;
   port: string;
   user: string;
+  authType: AuthType;
+  password: string;
+  privateKey: string;
 }
 
 function validateForm(fields: FormFields): string | null {
@@ -26,6 +29,8 @@ function validateForm(fields: FormFields): string | null {
   const portNum = parseInt(fields.port, 10);
   if (isNaN(portNum) || portNum < 1 || portNum > 65535) return 'Port must be between 1 and 65535.';
   if (!fields.user.trim()) return 'Username is required.';
+  if (fields.authType === 'password' && !fields.password.trim()) return 'Password is required.';
+  if (fields.authType === 'pubkey' && !fields.privateKey.trim()) return 'Private key is required.';
   return null;
 }
 
@@ -37,6 +42,8 @@ const FEATURES = [
   { icon: '🌐', text: 'Auto-reconnect' },
 ];
 
+const defaultFields = (): FormFields => ({ host: '', port: '22', user: '', authType: 'vault', password: '', privateKey: '' });
+
 export function ConnectForm({
   appState,
   onConnect,
@@ -45,7 +52,7 @@ export function ConnectForm({
   onShowSessions,
   onShowLogs,
 }: ConnectFormProps) {
-  const [fields, setFields] = useState<FormFields>({ host: '', port: '22', user: '' });
+  const [fields, setFields] = useState<FormFields>(defaultFields);
   const [extraEntries, setExtraEntries] = useState<FormFields[]>([]);
   const [error, setError] = useState<string | null>(null);
   const isLoading = appState === 'connecting';
@@ -56,6 +63,8 @@ export function ConnectForm({
   const [profileName, setProfileName] = useState('');
   const [importMessage, setImportMessage] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  // Per-entry key file input refs (main + extras)
+  const keyFileRefs = useRef<(HTMLInputElement | null)[]>([]);
 
   function handleImportClick() {
     fileInputRef.current?.click();
@@ -86,13 +95,18 @@ export function ConnectForm({
   }
 
   function handleHistoryClick(entry: HistoryEntry) {
-    setFields({ host: entry.host, port: String(entry.port), user: entry.user });
+    setFields({ host: entry.host, port: String(entry.port), user: entry.user, authType: entry.authType ?? 'vault', password: '', privateKey: '' });
     if (error) setError(null);
   }
 
-  function handleChange(e: React.ChangeEvent<HTMLInputElement>) {
+  function handleChange(e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) {
     const { name, value } = e.target;
     setFields((prev) => ({ ...prev, [name]: value }));
+    if (error) setError(null);
+  }
+
+  function handleAuthTypeChange(authType: AuthType) {
+    setFields((prev) => ({ ...prev, authType }));
     if (error) setError(null);
   }
 
@@ -101,8 +115,29 @@ export function ConnectForm({
     if (error) setError(null);
   }
 
+  function handleExtraAuthTypeChange(index: number, authType: AuthType) {
+    setExtraEntries((prev) => prev.map((entry, i) => i === index ? { ...entry, authType } : entry));
+    if (error) setError(null);
+  }
+
+  function handleKeyFileChange(entryIndex: number | 'main', e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = (ev) => {
+      const text = (ev.target?.result as string) ?? '';
+      if (entryIndex === 'main') {
+        setFields((prev) => ({ ...prev, privateKey: text }));
+      } else {
+        setExtraEntries((prev) => prev.map((entry, i) => i === entryIndex ? { ...entry, privateKey: text } : entry));
+      }
+    };
+    reader.readAsText(file);
+    e.target.value = '';
+  }
+
   function addExtraEntry() {
-    setExtraEntries((prev) => [...prev, { host: '', port: '22', user: '' }]);
+    setExtraEntries((prev) => [...prev, { host: '', port: '22', user: '', authType: 'vault', password: '', privateKey: '' }]);
   }
 
   function removeExtraEntry(index: number) {
@@ -133,10 +168,9 @@ export function ConnectForm({
       const entry = allEntries[0];
       const port = parseInt(entry.port, 10);
       try {
-        const response = await connectToHost({
-          host: entry.host.trim(), port, user: entry.user.trim(),
-        });
-        onConnect(response.session_token, response.expires_at, entry.host.trim(), port, entry.user.trim());
+        const connectReq = buildConnectRequest(entry);
+        const response = await connectToHost(connectReq);
+        onConnect(response.session_token, response.expires_at, entry.host.trim(), port, entry.user.trim(), entry.authType);
       } catch (err) {
         setError(err instanceof Error ? err.message : 'An unexpected error occurred.');
         onStateChange('idle');
@@ -146,15 +180,13 @@ export function ConnectForm({
 
     // Multiple hosts: connect in parallel
     const results = await Promise.allSettled(
-      allEntries.map((entry) =>
-        connectToHost({ host: entry.host.trim(), port: parseInt(entry.port, 10), user: entry.user.trim() })
-      )
+      allEntries.map((entry) => connectToHost(buildConnectRequest(entry)))
     );
 
     results.forEach((result, i) => {
       if (result.status === 'fulfilled') {
         const entry = allEntries[i];
-        onConnect(result.value.session_token, result.value.expires_at, entry.host.trim(), parseInt(entry.port, 10), entry.user.trim());
+        onConnect(result.value.session_token, result.value.expires_at, entry.host.trim(), parseInt(entry.port, 10), entry.user.trim(), entry.authType);
       }
     });
 
@@ -174,11 +206,23 @@ export function ConnectForm({
     }
   }
 
+  function buildConnectRequest(entry: FormFields) {
+    const port = parseInt(entry.port, 10);
+    const base = { host: entry.host.trim(), port, user: entry.user.trim(), auth_type: entry.authType } as const;
+    if (entry.authType === 'password') {
+      return { ...base, password: entry.password };
+    }
+    if (entry.authType === 'pubkey') {
+      return { ...base, private_key: entry.privateKey };
+    }
+    return base;
+  }
+
   function handleSaveProfile() {
     const validationError = validateForm(fields);
     if (validationError) { setError(validationError); return; }
     const name = profileName.trim() || `${fields.user}@${fields.host}`;
-    saveProfile(name, fields.host.trim(), parseInt(fields.port, 10), fields.user.trim());
+    saveProfile(name, fields.host.trim(), parseInt(fields.port, 10), fields.user.trim(), fields.authType);
     setProfileName('');
     setShowSaveProfile(false);
   }
@@ -186,7 +230,7 @@ export function ConnectForm({
   function handleLoadProfile(id: string) {
     const p = profiles.find((x) => x.id === id);
     if (p) {
-      setFields({ host: p.host, port: String(p.port), user: p.user });
+      setFields({ host: p.host, port: String(p.port), user: p.user, authType: p.authType ?? 'vault', password: '', privateKey: '' });
       if (error) setError(null);
     }
   }
@@ -196,7 +240,7 @@ export function ConnectForm({
     if (p) {
       setExtraEntries((prev) =>
         prev.map((entry, i) =>
-          i === index ? { host: p.host, port: String(p.port), user: p.user } : entry
+          i === index ? { host: p.host, port: String(p.port), user: p.user, authType: p.authType ?? 'vault', password: '', privateKey: '' } : entry
         )
       );
       if (error) setError(null);
@@ -206,13 +250,93 @@ export function ConnectForm({
   function handleExtraLoadHistory(index: number, h: HistoryEntry) {
     setExtraEntries((prev) =>
       prev.map((entry, i) =>
-        i === index ? { host: h.host, port: String(h.port), user: h.user } : entry
+        i === index ? { host: h.host, port: String(h.port), user: h.user, authType: h.authType ?? 'vault', password: '', privateKey: '' } : entry
       )
     );
     if (error) setError(null);
   }
 
   const hasMultiple = extraEntries.length > 0;
+
+  function renderAuthFields(
+    entry: FormFields,
+    onAuthTypeChange: (at: AuthType) => void,
+    onFieldChange: (field: keyof FormFields, value: string) => void,
+    keyFileIndex: number | 'main',
+    disabled: boolean,
+    idPrefix: string,
+  ) {
+    return (
+      <>
+        <div className="cf-auth-tabs">
+          {(['vault', 'password', 'pubkey'] as AuthType[]).map((at) => (
+            <button
+              key={at}
+              type="button"
+              className={`cf-auth-tab${entry.authType === at ? ' active' : ''}`}
+              onClick={() => onAuthTypeChange(at)}
+              disabled={disabled}
+            >
+              {at === 'vault' ? 'Vault' : at === 'password' ? 'Password' : 'Public Key'}
+            </button>
+          ))}
+        </div>
+
+        {entry.authType === 'password' && (
+          <div className="cf-field">
+            <label htmlFor={`${idPrefix}-password`}>Password</label>
+            <input
+              id={`${idPrefix}-password`}
+              name="password"
+              type="password"
+              placeholder="••••••••"
+              value={entry.password}
+              onChange={(e) => onFieldChange('password', e.target.value)}
+              disabled={disabled}
+              autoComplete="current-password"
+            />
+          </div>
+        )}
+
+        {entry.authType === 'pubkey' && (
+          <div className="cf-field">
+            <label>Private Key (PEM)</label>
+            <textarea
+              className="cf-key-textarea"
+              placeholder="-----BEGIN OPENSSH PRIVATE KEY-----&#10;..."
+              value={entry.privateKey}
+              onChange={(e) => onFieldChange('privateKey', e.target.value)}
+              disabled={disabled}
+            />
+            <input
+              ref={(el) => {
+                if (keyFileIndex === 'main') {
+                  keyFileRefs.current[0] = el;
+                } else {
+                  keyFileRefs.current[keyFileIndex + 1] = el;
+                }
+              }}
+              type="file"
+              accept=".pem,.key"
+              style={{ display: 'none' }}
+              onChange={(e) => handleKeyFileChange(keyFileIndex, e)}
+            />
+            <button
+              type="button"
+              className="cf-key-upload-btn"
+              onClick={() => {
+                const idx = keyFileIndex === 'main' ? 0 : (keyFileIndex as number) + 1;
+                keyFileRefs.current[idx]?.click();
+              }}
+              disabled={disabled}
+            >
+              Upload .pem / .key file
+            </button>
+          </div>
+        )}
+      </>
+    );
+  }
 
   return (
     <div className="cf-page">
@@ -257,6 +381,15 @@ export function ConnectForm({
                 />
               </div>
             </div>
+
+            {renderAuthFields(
+              fields,
+              handleAuthTypeChange,
+              (field, value) => setFields((prev) => ({ ...prev, [field]: value })),
+              'main',
+              isLoading,
+              'main',
+            )}
 
             <button type="submit" className="cf-btn" disabled={isLoading}>
               {isLoading
@@ -318,6 +451,15 @@ export function ConnectForm({
                   />
                 </div>
               </div>
+
+              {renderAuthFields(
+                entry,
+                (at) => handleExtraAuthTypeChange(i, at),
+                (field, value) => handleExtraChange(i, field, value),
+                i,
+                isLoading,
+                `extra-${i}`,
+              )}
 
               {/* Profile chips + Recent chips for this entry */}
               {(profiles.length > 0 || history.length > 0) && (

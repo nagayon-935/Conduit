@@ -21,11 +21,17 @@ const (
 
 // ConnectRequest carries all parameters needed to establish an SSH session.
 type ConnectRequest struct {
-	Host        string
-	Port        int
-	User        string
+	Host     string
+	Port     int
+	User     string
+	AuthType string // "vault" | "password" | "pubkey"
+	// vault
 	PrivateKey  []byte // PEM-encoded ED25519 private key
 	Certificate []byte // Vault-issued SSH certificate (OpenSSH format string as bytes)
+	// password
+	Password string
+	// pubkey (user-provided)
+	UserPrivateKey []byte
 }
 
 // SSHDialer is the interface for dialing SSH connections.
@@ -45,16 +51,28 @@ func NewDialer() *Dialer {
 
 // Dial connects to the SSH server described in req, requests a PTY, and starts a shell.
 func (d *Dialer) Dial(ctx context.Context, req ConnectRequest) (*ssh.Client, *ssh.Session, io.WriteCloser, io.Reader, error) {
-	signer, err := buildCertSigner(req.PrivateKey, req.Certificate)
-	if err != nil {
-		return nil, nil, nil, nil, fmt.Errorf("sshconn: build cert signer: %w", err)
+	var authMethods []ssh.AuthMethod
+
+	switch req.AuthType {
+	case "password":
+		authMethods = []ssh.AuthMethod{ssh.Password(req.Password)}
+	case "pubkey":
+		signer, err := ssh.ParsePrivateKey(req.UserPrivateKey)
+		if err != nil {
+			return nil, nil, nil, nil, fmt.Errorf("sshconn: parse user private key: %w", err)
+		}
+		authMethods = []ssh.AuthMethod{ssh.PublicKeys(signer)}
+	default: // "vault" or ""
+		signer, err := buildCertSigner(req.PrivateKey, req.Certificate)
+		if err != nil {
+			return nil, nil, nil, nil, fmt.Errorf("sshconn: build cert signer: %w", err)
+		}
+		authMethods = []ssh.AuthMethod{ssh.PublicKeys(signer)}
 	}
 
 	sshCfg := &ssh.ClientConfig{
 		User: req.User,
-		Auth: []ssh.AuthMethod{
-			ssh.PublicKeys(signer),
-		},
+		Auth: authMethods,
 		// In a production environment this should be replaced with a proper host key callback.
 		HostKeyCallback: ssh.InsecureIgnoreHostKey(), //nolint:gosec
 		Timeout:         dialTimeout,

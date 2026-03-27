@@ -5,7 +5,7 @@ import { SessionList } from './components/SessionList';
 import { LogPage } from './components/LogPage';
 import { TabBar } from './components/TabBar';
 import { NewConnectionOverlay } from './components/NewConnectionOverlay';
-import type { AppState, LayoutType } from './types';
+import type { AppState, AuthType, LayoutType } from './types';
 import { saveSession, loadSession, clearSession } from './utils/session';
 import { useConnectionHistory } from './hooks/useConnectionHistory';
 import { useProfiles } from './hooks/useProfiles';
@@ -115,13 +115,13 @@ export default function App() {
 
   // ── Connect ─────────────────────────────────────────────────────────────
   const handleConnect = useCallback(
-    (token: string, expiresAt: string, host: string, port: number, user: string) => {
+    (token: string, expiresAt: string, host: string, port: number, user: string, authType: AuthType) => {
       const id = crypto.randomUUID();
       const tab: SessionTab = { id, sessionToken: token, host, port, user, expiresAt };
       setTabs((prev) => [...prev, tab]);
       setActiveTabId(id);
       saveSession({ token, expiresAt, host, port, user });
-      addEntry(host, port, user);
+      addEntry(host, port, user, authType);
       setShowOverlay(false);
       setAppState('idle');
 

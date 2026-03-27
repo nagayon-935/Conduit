@@ -1,7 +1,12 @@
+export type AuthType = 'vault' | 'password' | 'pubkey';
+
 export interface ConnectRequest {
   host: string;
   port: number;
   user: string;
+  auth_type: AuthType;
+  password?: string;
+  private_key?: string;
 }
 
 export interface ConnectResponse {
@@ -36,6 +41,7 @@ export interface Profile {
   host: string;
   port: number;
   user: string;
+  authType: AuthType;
   createdAt: string;
 }
 
@@ -43,6 +49,7 @@ export interface HistoryEntry {
   host: string;
   port: number;
   user: string;
+  authType: AuthType;
   connectedAt: string;
 }
 

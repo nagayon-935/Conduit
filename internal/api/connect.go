@@ -21,9 +21,12 @@ const (
 
 // ConnectRequest is the JSON body for POST /api/connect.
 type ConnectRequest struct {
-	Host string `json:"host"`
-	Port int    `json:"port"`
-	User string `json:"user"`
+	Host       string `json:"host"`
+	Port       int    `json:"port"`
+	User       string `json:"user"`
+	AuthType   string `json:"auth_type"`             // "vault" | "password" | "pubkey"
+	Password   string `json:"password,omitempty"`
+	PrivateKey string `json:"private_key,omitempty"`
 }
 
 // ConnectResponse is returned on a successful connection.
@@ -48,31 +51,52 @@ func (h *Handler) handleConnect(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	slog.Info("connect request received", "host", req.Host, "port", req.Port, "user", req.User)
+	slog.Info("connect request received", "host", req.Host, "port", req.Port, "user", req.User, "auth_type", req.AuthType)
 
-	// Step 1: Generate in-memory ED25519 key pair.
-	privateKeyPEM, publicKeyOpenSSH, err := sshconn.GenerateKeyPair()
-	if err != nil {
-		slog.Error("key pair generation failed", "error", err)
-		apiError(w, http.StatusInternalServerError, "key generation failed", "KEY_GEN_ERROR")
-		return
-	}
+	var dialReq sshconn.ConnectRequest
 
-	// Step 2: Sign the public key with Vault.
-	signedCert, err := h.vault.SignPublicKey(r.Context(), publicKeyOpenSSH, req.User)
-	if err != nil {
-		slog.Error("vault signing failed", "error", err)
-		apiError(w, http.StatusBadGateway, "vault signing failed: "+err.Error(), "VAULT_ERROR")
-		return
-	}
+	switch req.AuthType {
+	case "password":
+		dialReq = sshconn.ConnectRequest{
+			Host:     req.Host,
+			Port:     req.Port,
+			User:     req.User,
+			AuthType: "password",
+			Password: req.Password,
+		}
+	case "pubkey":
+		dialReq = sshconn.ConnectRequest{
+			Host:           req.Host,
+			Port:           req.Port,
+			User:           req.User,
+			AuthType:       "pubkey",
+			UserPrivateKey: []byte(req.PrivateKey),
+		}
+	default: // "vault" or ""
+		// Step 1: Generate in-memory ED25519 key pair.
+		privateKeyPEM, publicKeyOpenSSH, err := sshconn.GenerateKeyPair()
+		if err != nil {
+			slog.Error("key pair generation failed", "error", err)
+			apiError(w, http.StatusInternalServerError, "key generation failed", "KEY_GEN_ERROR")
+			return
+		}
 
-	// Step 3: Dial SSH using the signed certificate.
-	dialReq := sshconn.ConnectRequest{
-		Host:        req.Host,
-		Port:        req.Port,
-		User:        req.User,
-		PrivateKey:  privateKeyPEM,
-		Certificate: []byte(signedCert),
+		// Step 2: Sign the public key with Vault.
+		signedCert, err := h.vault.SignPublicKey(r.Context(), publicKeyOpenSSH, req.User)
+		if err != nil {
+			slog.Error("vault signing failed", "error", err)
+			apiError(w, http.StatusBadGateway, "vault signing failed: "+err.Error(), "VAULT_ERROR")
+			return
+		}
+
+		dialReq = sshconn.ConnectRequest{
+			Host:        req.Host,
+			Port:        req.Port,
+			User:        req.User,
+			AuthType:    "vault",
+			PrivateKey:  privateKeyPEM,
+			Certificate: []byte(signedCert),
+		}
 	}
 
 	sshClient, sshSess, stdin, stdout, err := h.dialer.Dial(r.Context(), dialReq)
@@ -129,6 +153,12 @@ func validateConnectRequest(req ConnectRequest) error {
 	}
 	if strings.TrimSpace(req.User) == "" {
 		return fmt.Errorf("user is required")
+	}
+	if req.AuthType == "password" && strings.TrimSpace(req.Password) == "" {
+		return fmt.Errorf("password is required for password auth")
+	}
+	if req.AuthType == "pubkey" && strings.TrimSpace(req.PrivateKey) == "" {
+		return fmt.Errorf("private_key is required for pubkey auth")
 	}
 	return nil
 }

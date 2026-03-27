@@ -1,10 +1,10 @@
-import { useState, useEffect, type FormEvent } from 'react';
+import { useState, useEffect, useRef, type FormEvent } from 'react';
 import { connectToHost } from '../api/connect';
-import type { HistoryEntry, Profile } from '../types';
+import type { HistoryEntry, Profile, AuthType } from '../types';
 import './NewConnectionOverlay.css';
 
 interface NewConnectionOverlayProps {
-  onConnect: (token: string, expiresAt: string, host: string, port: number, user: string) => void;
+  onConnect: (token: string, expiresAt: string, host: string, port: number, user: string, authType: AuthType) => void;
   onClose: () => void;
   history?: HistoryEntry[];
   profiles?: Profile[];
@@ -14,6 +14,9 @@ interface FormFields {
   host: string;
   port: string;
   user: string;
+  authType: AuthType;
+  password: string;
+  privateKey: string;
 }
 
 function validateForm(fields: FormFields): string | null {
@@ -21,8 +24,12 @@ function validateForm(fields: FormFields): string | null {
   const portNum = parseInt(fields.port, 10);
   if (isNaN(portNum) || portNum < 1 || portNum > 65535) return 'Port must be between 1 and 65535.';
   if (!fields.user.trim()) return 'Username is required.';
+  if (fields.authType === 'password' && !fields.password.trim()) return 'Password is required.';
+  if (fields.authType === 'pubkey' && !fields.privateKey.trim()) return 'Private key is required.';
   return null;
 }
+
+const defaultFields = (): FormFields => ({ host: '', port: '22', user: '', authType: 'vault', password: '', privateKey: '' });
 
 export function NewConnectionOverlay({
   onConnect,
@@ -30,9 +37,10 @@ export function NewConnectionOverlay({
   history = [],
   profiles = [],
 }: NewConnectionOverlayProps) {
-  const [fields, setFields] = useState<FormFields>({ host: '', port: '22', user: '' });
+  const [fields, setFields] = useState<FormFields>(defaultFields);
   const [error, setError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
+  const keyFileRef = useRef<HTMLInputElement>(null);
 
   // Close on Escape key
   useEffect(() => {
@@ -45,10 +53,27 @@ export function NewConnectionOverlay({
     return () => document.removeEventListener('keydown', handleKeyDown);
   }, [onClose, isLoading]);
 
-  function handleChange(e: React.ChangeEvent<HTMLInputElement>) {
+  function handleChange(e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) {
     const { name, value } = e.target;
     setFields((prev) => ({ ...prev, [name]: value }));
     if (error) setError(null);
+  }
+
+  function handleAuthTypeChange(authType: AuthType) {
+    setFields((prev) => ({ ...prev, authType }));
+    if (error) setError(null);
+  }
+
+  function handleKeyFileChange(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = (ev) => {
+      const text = (ev.target?.result as string) ?? '';
+      setFields((prev) => ({ ...prev, privateKey: text }));
+    };
+    reader.readAsText(file);
+    e.target.value = '';
   }
 
   async function handleSubmit(e: FormEvent<HTMLFormElement>) {
@@ -62,27 +87,36 @@ export function NewConnectionOverlay({
     const port = parseInt(fields.port, 10);
     setIsLoading(true);
     try {
-      const response = await connectToHost({
-        host: fields.host.trim(),
-        port,
-        user: fields.user.trim(),
-      });
-      onConnect(response.session_token, response.expires_at, fields.host.trim(), port, fields.user.trim());
+      const connectReq = buildConnectRequest(fields);
+      const response = await connectToHost(connectReq);
+      onConnect(response.session_token, response.expires_at, fields.host.trim(), port, fields.user.trim(), fields.authType);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'An unexpected error occurred.');
       setIsLoading(false);
     }
   }
 
+  function buildConnectRequest(f: FormFields) {
+    const port = parseInt(f.port, 10);
+    const base = { host: f.host.trim(), port, user: f.user.trim(), auth_type: f.authType } as const;
+    if (f.authType === 'password') {
+      return { ...base, password: f.password };
+    }
+    if (f.authType === 'pubkey') {
+      return { ...base, private_key: f.privateKey };
+    }
+    return base;
+  }
+
   function fillFromHistory(entry: HistoryEntry) {
     if (isLoading) return;
-    setFields({ host: entry.host, port: String(entry.port), user: entry.user });
+    setFields({ host: entry.host, port: String(entry.port), user: entry.user, authType: entry.authType ?? 'vault', password: '', privateKey: '' });
     if (error) setError(null);
   }
 
   function fillFromProfile(profile: Profile) {
     if (isLoading) return;
-    setFields({ host: profile.host, port: String(profile.port), user: profile.user });
+    setFields({ host: profile.host, port: String(profile.port), user: profile.user, authType: profile.authType ?? 'vault', password: '', privateKey: '' });
     if (error) setError(null);
   }
 
@@ -151,6 +185,65 @@ export function NewConnectionOverlay({
               />
             </div>
           </div>
+
+          {/* Auth type selector */}
+          <div className="nco-auth-tabs">
+            {(['vault', 'password', 'pubkey'] as AuthType[]).map((at) => (
+              <button
+                key={at}
+                type="button"
+                className={`nco-auth-tab${fields.authType === at ? ' active' : ''}`}
+                onClick={() => handleAuthTypeChange(at)}
+                disabled={isLoading}
+              >
+                {at === 'vault' ? 'Vault' : at === 'password' ? 'Password' : 'Public Key'}
+              </button>
+            ))}
+          </div>
+
+          {fields.authType === 'password' && (
+            <div className="nco-field">
+              <label htmlFor="nco-password">Password</label>
+              <input
+                id="nco-password"
+                name="password"
+                type="password"
+                placeholder="••••••••"
+                value={fields.password}
+                onChange={handleChange}
+                disabled={isLoading}
+                autoComplete="current-password"
+              />
+            </div>
+          )}
+
+          {fields.authType === 'pubkey' && (
+            <div className="nco-field">
+              <label>Private Key (PEM)</label>
+              <textarea
+                className="nco-key-textarea"
+                placeholder="-----BEGIN OPENSSH PRIVATE KEY-----&#10;..."
+                value={fields.privateKey}
+                onChange={(e) => setFields((prev) => ({ ...prev, privateKey: e.target.value }))}
+                disabled={isLoading}
+              />
+              <input
+                ref={keyFileRef}
+                type="file"
+                accept=".pem,.key"
+                style={{ display: 'none' }}
+                onChange={handleKeyFileChange}
+              />
+              <button
+                type="button"
+                className="nco-key-upload-btn"
+                onClick={() => keyFileRef.current?.click()}
+                disabled={isLoading}
+              >
+                Upload .pem / .key file
+              </button>
+            </div>
+          )}
 
           <button type="submit" className="nco-submit-btn" disabled={isLoading}>
             {isLoading ? (
