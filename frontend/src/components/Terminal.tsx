@@ -78,12 +78,12 @@ export function Terminal({ sessionToken, host, port, user, expiresAt, onDisconne
 
   useEffect(() => {
     function handleKeyDown(e: KeyboardEvent) {
-      if (e.ctrlKey && (e.key === '=' || e.key === '+')) {
+      if (e.ctrlKey && (e.code === 'Equal' || e.key === '+')) {
         e.preventDefault();
         changeFontSize(1);
         const current = terminal?.options.fontSize ?? 14;
         showFontSizeToast(Math.min(32, current + 1));
-      } else if (e.ctrlKey && e.key === '-') {
+      } else if (e.ctrlKey && (e.code === 'Minus' || e.key === '-')) {
         e.preventDefault();
         changeFontSize(-1);
         const current = terminal?.options.fontSize ?? 14;
