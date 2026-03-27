@@ -177,14 +177,32 @@ input[type='number'] { -moz-appearance: textfield; appearance: textfield; }
   border-top: 1px solid #1e2030;
 }
 
+.cf-history-header {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  margin-bottom: clamp(10px, 1vh, 14px);
+}
+
 .cf-history-label {
   font-size: clamp(11px, 0.85vw, 13px);
   font-weight: 700;
   color: #565f89;
   text-transform: uppercase;
   letter-spacing: 0.8px;
-  margin: 0 0 clamp(10px, 1vh, 14px) 0;
+  margin: 0;
 }
+
+.cf-history-view-all {
+  background: transparent;
+  border: none;
+  color: #3b4072;
+  font-size: clamp(11px, 0.85vw, 13px);
+  cursor: pointer;
+  padding: 0;
+  transition: color 0.15s;
+}
+.cf-history-view-all:hover { color: #7aa2f7; }
 
 .cf-history-list {
   list-style: none;

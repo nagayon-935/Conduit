@@ -215,6 +215,44 @@
   background: #7aa2f7;
 }
 
+/* ── Split group chip ─────────────────────────────────────────────────── */
+.tab-split-group {
+  display: flex;
+  align-items: center;
+  gap: 0;
+  padding: 0 10px;
+  height: 28px;
+  border-radius: 6px;
+  background: #414868;
+  color: #c0caf5;
+  font-size: 13px;
+  font-family: 'Menlo', 'Monaco', 'Courier New', monospace;
+  white-space: nowrap;
+  flex-shrink: 0;
+  user-select: none;
+  cursor: default;
+}
+
+.tab-split-group-icon {
+  color: #7aa2f7;
+  font-size: 11px;
+  margin-right: 6px;
+  opacity: 0.9;
+}
+
+.tab-split-group-entry {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.tab-split-group-sep {
+  color: #565f89;
+  margin: 0 6px;
+  font-size: 12px;
+  opacity: 0.7;
+}
+
 /* ── Empty pane placeholder ──────────────────────────────────────────── */
 .split-empty-pane {
   flex: 1;

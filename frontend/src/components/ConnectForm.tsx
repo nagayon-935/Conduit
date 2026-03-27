@@ -402,9 +402,16 @@ export function ConnectForm({
 
           {history.length > 0 && (
             <div className="cf-history">
-              <p className="cf-history-label">Recent</p>
+              <div className="cf-history-header">
+                <p className="cf-history-label">Recent</p>
+                {history.length > 5 && onShowLogs && (
+                  <button type="button" className="cf-history-view-all" onClick={onShowLogs}>
+                    View all ({history.length}) →
+                  </button>
+                )}
+              </div>
               <ul className="cf-history-list">
-                {history.map((entry, i) => (
+                {history.slice(0, 5).map((entry, i) => (
                   <li
                     key={i} className="cf-history-item"
                     role="button" tabIndex={0}
