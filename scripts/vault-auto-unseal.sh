@@ -6,7 +6,7 @@
 set -e
 
 VAULT_ADDR="${VAULT_ADDR:-http://localhost:8200}"
-KEYS_FILE="/etc/vault/unseal-keys"
+KEYS_FILE="/var/tmp/unseal-keys"
 MAX_WAIT=60   # Vault 起動を最大60秒待つ
 
 # ── キーファイルの確認 ────────────────────────────────────────────────────
