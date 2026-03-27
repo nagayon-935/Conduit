@@ -80,7 +80,33 @@ Go HTTP Server
 
 ---
 
-## セットアップ
+## 本番デプロイ
+
+詳細は [DEPLOY.md](DEPLOY.md) を参照してください。
+
+### 接続先 SSH サーバーのセットアップ
+
+Conduit から接続したい SSH サーバーで以下のスクリプトを実行します：
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/nagayon-935/Conduit/main/scripts/setup-ssh-server.sh \
+  | bash -s http://<VaultのIP>:8200
+```
+
+またはリポジトリをクローンしている場合：
+
+```bash
+bash scripts/setup-ssh-server.sh http://<VaultのIP>:8200
+```
+
+スクリプトが行うこと：
+1. Vault から CA 公開鍵を取得し `/etc/ssh/trusted-ca.pub` に保存
+2. `/etc/ssh/sshd_config` に `TrustedUserCAKeys` を追記
+3. `sshd` を再読み込み
+
+---
+
+## ローカル開発セットアップ
 
 ### 前提条件
 
