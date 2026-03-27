@@ -56,21 +56,6 @@ export default function App() {
     setPaneTabIds(newPanes);
   }
 
-  // ── Layout keyboard shortcuts ───────────────────────────────────────────
-  // Ctrl+D       → 2v (side by side)
-  // Ctrl+Shift+D → 2h (top / bottom)
-  useEffect(() => {
-    function onKeyDown(e: KeyboardEvent) {
-      if (!e.ctrlKey || e.key.toLowerCase() !== 'd') return;
-      if (tabs.length < 2) return;
-      e.preventDefault();
-      switchLayout(e.shiftKey ? '2h' : '2v');
-    }
-    window.addEventListener('keydown', onKeyDown);
-    return () => window.removeEventListener('keydown', onKeyDown);
-  // switchLayout reads tabs/activeTabId/layoutType from closure — re-register when they change
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [tabs, activeTabId, layoutType]);
 
   // ── Divider drag handlers ───────────────────────────────────────────────
   function handleDividerVMouseDown(e: ReactMouseEvent) {

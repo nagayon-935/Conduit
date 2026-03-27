@@ -49,8 +49,8 @@ function LayoutIcon({ type }: { type: LayoutType }) {
 
 const LAYOUT_BTNS: { key: LayoutType; title: string; minTabs: number }[] = [
   { key: '1',  title: 'Single pane',  minTabs: 1 },
-  { key: '2v', title: 'Side by side (Ctrl+D)',       minTabs: 2 },
-  { key: '2h', title: 'Top / Bottom (Ctrl+Shift+D)', minTabs: 2 },
+  { key: '2v', title: 'Side by side', minTabs: 2 },
+  { key: '2h', title: 'Top / Bottom', minTabs: 2 },
   { key: '4',  title: '2×2 grid',     minTabs: 2 },
 ];
 
