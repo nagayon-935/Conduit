@@ -34,7 +34,7 @@ if [ "${INIT_STATUS}" = "True" ] || [ "${INIT_STATUS}" = "true" ]; then
 else
   echo "  初期化を実行します（unseal キー x5 と root トークンが生成されます）"
   echo ""
-  docker exec conduit-vault vault operator init | tee /tmp/vault-init-keys.txt
+  docker exec -e VAULT_ADDR=http://127.0.0.1:8200 conduit-vault vault operator init | tee /tmp/vault-init-keys.txt
   echo ""
   echo "  !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!"
   echo "  !! 上記の Unseal Keys と Root Token を安全な場所に   !!"
@@ -64,7 +64,7 @@ else
   for i in 1 2 3; do
     read -sp "  Unseal Key ${i}: " key
     echo ""
-    docker exec conduit-vault vault operator unseal "${key}"
+    docker exec -e VAULT_ADDR=http://127.0.0.1:8200 conduit-vault vault operator unseal "${key}"
   done
 fi
 echo ""
@@ -74,20 +74,20 @@ echo "[4/6] Root トークンでログインします..."
 read -sp "  Root Token: " root_token
 echo ""
 export VAULT_TOKEN="${root_token}"
-docker exec -e VAULT_TOKEN="${root_token}" conduit-vault vault login "${root_token}" > /dev/null
+docker exec -e VAULT_ADDR=http://127.0.0.1:8200 -e VAULT_TOKEN="${root_token}" conduit-vault vault login "${root_token}" > /dev/null
 echo "  ログイン成功"
 echo ""
 
 # ── Step 5: SSH Secrets Engine の設定 ─────────────────────────────────────
 echo "[5/6] SSH Secrets Engine を設定します..."
 
-docker exec -e VAULT_TOKEN="${root_token}" conduit-vault \
+docker exec -e VAULT_ADDR=http://127.0.0.1:8200 -e VAULT_TOKEN="${root_token}" conduit-vault \
   vault secrets enable -path=ssh ssh 2>/dev/null || echo "  (SSH engine はすでに有効です)"
 
-docker exec -e VAULT_TOKEN="${root_token}" conduit-vault \
+docker exec -e VAULT_ADDR=http://127.0.0.1:8200 -e VAULT_TOKEN="${root_token}" conduit-vault \
   vault write -f ssh/config/ca 2>/dev/null || echo "  (CA はすでに設定済みです)"
 
-docker exec -e VAULT_TOKEN="${root_token}" conduit-vault \
+docker exec -e VAULT_ADDR=http://127.0.0.1:8200 -e VAULT_TOKEN="${root_token}" conduit-vault \
   vault write ssh/roles/conduit - <<'JSON'
 {
   "key_type": "ca",
@@ -110,7 +110,7 @@ echo ""
 echo "[6/6] Conduit 専用トークンを作成します..."
 
 # 最小権限ポリシー（SSH 署名のみ許可）
-docker exec -e VAULT_TOKEN="${root_token}" conduit-vault \
+docker exec -e VAULT_ADDR=http://127.0.0.1:8200 -e VAULT_TOKEN="${root_token}" conduit-vault \
   vault policy write conduit - <<'POLICY'
 path "ssh/sign/conduit" {
   capabilities = ["create", "update"]
@@ -118,7 +118,7 @@ path "ssh/sign/conduit" {
 POLICY
 
 # 有効期限なし・定期更新トークンを作成
-CONDUIT_TOKEN=$(docker exec -e VAULT_TOKEN="${root_token}" conduit-vault \
+CONDUIT_TOKEN=$(docker exec -e VAULT_ADDR=http://127.0.0.1:8200 -e VAULT_TOKEN="${root_token}" conduit-vault \
   vault token create \
   -policy=conduit \
   -display-name=conduit \
