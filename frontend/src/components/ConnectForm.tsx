@@ -44,10 +44,12 @@ export function ConnectForm({
   const [importMessage, setImportMessage] = useState<string | null>(null);
   const [sshConfigFile, setSshConfigFile] = useState<File | null>(null);
   const [pendingKeyPicks, setPendingKeyPicks] = useState<Array<{ basename: string; keyType: 'main' | 'jump' }>>([]);
+  const [loadedProfileId, setLoadedProfileId] = useState<string | null>(null);
   const pendingKeyInputRef = useRef<HTMLInputElement>(null);
   const profilesRef = useRef(profiles);
   profilesRef.current = profiles;
-  const [loadedProfileId, setLoadedProfileId] = useState<string | null>(null);
+  const loadedProfileIdRef = useRef(loadedProfileId);
+  loadedProfileIdRef.current = loadedProfileId;
   const fileInputRef = useRef<HTMLInputElement>(null);
   const navMenuRef = useRef<HTMLDivElement>(null);
   const [navMenuOpen, setNavMenuOpen] = useState(false);
@@ -132,8 +134,15 @@ export function ConnectForm({
       for (const p of profilesRef.current) {
         if (keyType === 'main' && p.privateKeyName === basename && !p.privateKeyContent) {
           storeProfileKeys(p.id, { privateKeyContent: content, privateKeyName: file.name });
+          // 現在フォームに読み込まれているプロファイルであればフォームにも反映
+          if (p.id === loadedProfileIdRef.current) {
+            setFields(prev => ({ ...prev, privateKey: content, privateKeyName: file.name }));
+          }
         } else if (keyType === 'jump' && p.jumpPrivateKeyName === basename && !p.jumpPrivateKeyContent) {
           storeProfileKeys(p.id, { jumpPrivateKeyContent: content, jumpPrivateKeyName: file.name });
+          if (p.id === loadedProfileIdRef.current) {
+            setFields(prev => ({ ...prev, jumpPrivateKey: content, jumpPrivateKeyName: file.name }));
+          }
         }
       }
       setPendingKeyPicks(prev => prev.slice(1));
@@ -329,6 +338,15 @@ export function ConnectForm({
         jumpPrivateKey: p.jumpPrivateKeyContent ?? '',
         jumpPrivateKeyName: p.jumpPrivateKeyName ?? '',
       });
+      // 鍵が未登録であればすぐに選択を促す
+      const picks: Array<{ basename: string; keyType: 'main' | 'jump' }> = [];
+      if (p.authType === 'pubkey' && p.privateKeyName && !p.privateKeyContent) {
+        picks.push({ basename: p.privateKeyName, keyType: 'main' });
+      }
+      if (p.jumpAuthType === 'pubkey' && p.jumpPrivateKeyName && !p.jumpPrivateKeyContent) {
+        picks.push({ basename: p.jumpPrivateKeyName, keyType: 'jump' });
+      }
+      if (picks.length > 0) setPendingKeyPicks(picks);
       if (error) setError(null);
     }
   }
