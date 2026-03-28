@@ -782,6 +782,12 @@ input[type='number'] { -moz-appearance: textfield; appearance: textfield; }
   border-radius: 4px; padding: 5px 10px;
   overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0;
 }
+.cf-key-hint {
+  font-size: 14px; color: #e0af68; font-family: monospace;
+  background: rgba(224, 175, 104, 0.08); border: 1px dashed rgba(224, 175, 104, 0.35);
+  border-radius: 4px; padding: 5px 10px;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0;
+}
 .cf-key-placeholder {
   font-size: 14px; color: #414868; font-style: italic;
 }

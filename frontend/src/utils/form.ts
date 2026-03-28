@@ -11,6 +11,8 @@ export interface FormFields {
   privateKey: string;
   /** Display-only filename of the selected key file */
   privateKeyName: string;
+  /** ssh_config の IdentityFile パス（ヒント表示用・ファイル内容は含まない） */
+  identityFilePath: string;
   // ProxyJump (empty jumpHost means no jump)
   jumpHost: string;
   jumpPort: string;
@@ -19,13 +21,14 @@ export interface FormFields {
   jumpPassword: string;
   jumpPrivateKey: string;
   jumpPrivateKeyName: string;
+  jumpIdentityFilePath: string;
 }
 
 /** Returns default (empty) form fields. */
 export function defaultFields(): FormFields {
   return {
-    host: '', port: '22', user: '', authType: 'vault', password: '', privateKey: '', privateKeyName: '',
-    jumpHost: '', jumpPort: '22', jumpUser: '', jumpAuthType: 'vault', jumpPassword: '', jumpPrivateKey: '', jumpPrivateKeyName: '',
+    host: '', port: '22', user: '', authType: 'vault', password: '', privateKey: '', privateKeyName: '', identityFilePath: '',
+    jumpHost: '', jumpPort: '22', jumpUser: '', jumpAuthType: 'vault', jumpPassword: '', jumpPrivateKey: '', jumpPrivateKeyName: '', jumpIdentityFilePath: '',
   };
 }
 

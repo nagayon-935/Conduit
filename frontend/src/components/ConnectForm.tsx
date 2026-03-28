@@ -90,7 +90,7 @@ export function ConnectForm({
   }
 
   function handleHistoryClick(entry: HistoryEntry) {
-    setFields({ host: entry.host, port: String(entry.port), user: entry.user, authType: entry.authType ?? 'vault', password: '', privateKey: '', privateKeyName: '', jumpHost: '', jumpPort: '22', jumpUser: '', jumpAuthType: 'vault', jumpPassword: '', jumpPrivateKey: '', jumpPrivateKeyName: '' });
+    setFields({ host: entry.host, port: String(entry.port), user: entry.user, authType: entry.authType ?? 'vault', password: '', privateKey: '', privateKeyName: '', identityFilePath: '', jumpHost: '', jumpPort: '22', jumpUser: '', jumpAuthType: 'vault', jumpPassword: '', jumpPrivateKey: '', jumpPrivateKeyName: '', jumpIdentityFilePath: '' });
     if (error) setError(null);
   }
 
@@ -252,12 +252,12 @@ export function ConnectForm({
     if (p) {
       setFields({
         host: p.host, port: String(p.port), user: p.user, authType: p.authType ?? 'vault',
-        password: '', privateKey: '', privateKeyName: '',
+        password: '', privateKey: '', privateKeyName: '', identityFilePath: p.identityFilePath ?? '',
         jumpHost: p.jumpHost ?? '',
         jumpPort: p.jumpPort ? String(p.jumpPort) : '22',
         jumpUser: p.jumpUser ?? '',
         jumpAuthType: p.jumpAuthType ?? 'vault',
-        jumpPassword: '', jumpPrivateKey: '', jumpPrivateKeyName: '',
+        jumpPassword: '', jumpPrivateKey: '', jumpPrivateKeyName: '', jumpIdentityFilePath: p.jumpIdentityFilePath ?? '',
       });
       if (error) setError(null);
     }
@@ -270,12 +270,12 @@ export function ConnectForm({
         prev.map((entry, i) =>
           i === index ? {
             host: p.host, port: String(p.port), user: p.user, authType: p.authType ?? 'vault',
-            password: '', privateKey: '', privateKeyName: '',
+            password: '', privateKey: '', privateKeyName: '', identityFilePath: p.identityFilePath ?? '',
             jumpHost: p.jumpHost ?? '',
             jumpPort: p.jumpPort ? String(p.jumpPort) : '22',
             jumpUser: p.jumpUser ?? '',
             jumpAuthType: p.jumpAuthType ?? 'vault',
-            jumpPassword: '', jumpPrivateKey: '', jumpPrivateKeyName: '',
+            jumpPassword: '', jumpPrivateKey: '', jumpPrivateKeyName: '', jumpIdentityFilePath: p.jumpIdentityFilePath ?? '',
           } : entry
         )
       );
@@ -286,7 +286,7 @@ export function ConnectForm({
   function handleExtraLoadHistory(index: number, h: HistoryEntry) {
     setExtraEntries((prev) =>
       prev.map((entry, i) =>
-        i === index ? { host: h.host, port: String(h.port), user: h.user, authType: h.authType ?? 'vault', password: '', privateKey: '', privateKeyName: '', jumpHost: '', jumpPort: '22', jumpUser: '', jumpAuthType: 'vault', jumpPassword: '', jumpPrivateKey: '', jumpPrivateKeyName: '' } : entry
+        i === index ? { host: h.host, port: String(h.port), user: h.user, authType: h.authType ?? 'vault', password: '', privateKey: '', privateKeyName: '', identityFilePath: '', jumpHost: '', jumpPort: '22', jumpUser: '', jumpAuthType: 'vault', jumpPassword: '', jumpPrivateKey: '', jumpPrivateKeyName: '', jumpIdentityFilePath: '' } : entry
       )
     );
     if (error) setError(null);
@@ -363,6 +363,10 @@ export function ConnectForm({
               {entry.privateKeyName ? (
                 <span className="cf-key-filename" title={entry.privateKeyName}>
                   {entry.privateKeyName}
+                </span>
+              ) : entry.identityFilePath ? (
+                <span className="cf-key-hint" title={entry.identityFilePath}>
+                  {entry.identityFilePath}
                 </span>
               ) : (
                 <span className="cf-key-placeholder">No file selected</span>
@@ -488,6 +492,8 @@ export function ConnectForm({
                   </button>
                   {entry.jumpPrivateKeyName ? (
                     <span className="cf-key-filename" title={entry.jumpPrivateKeyName}>{entry.jumpPrivateKeyName}</span>
+                  ) : entry.jumpIdentityFilePath ? (
+                    <span className="cf-key-hint" title={entry.jumpIdentityFilePath}>{entry.jumpIdentityFilePath}</span>
                   ) : (
                     <span className="cf-key-placeholder">No file selected</span>
                   )}

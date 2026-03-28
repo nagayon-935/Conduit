@@ -50,10 +50,14 @@ export interface Profile {
   user: string;
   authType: AuthType;
   createdAt: string;
+  /** ssh_config の IdentityFile パス（ヒント表示用） */
+  identityFilePath?: string;
   jumpHost?: string;
   jumpPort?: number;
   jumpUser?: string;
   jumpAuthType?: AuthType;
+  /** ssh_config の ProxyJump 先 IdentityFile パス（ヒント表示用） */
+  jumpIdentityFilePath?: string;
 }
 
 export interface HistoryEntry {

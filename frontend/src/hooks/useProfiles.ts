@@ -29,7 +29,11 @@ interface UseProfilesReturn {
   saveProfile: (name: string, host: string, port: number, user: string, authType: AuthType, jump?: JumpParams) => void;
   deleteProfile: (id: string) => void;
   loadProfile: (id: string) => Profile | undefined;
-  importProfiles: (entries: { name: string; host: string; port: number; user: string; authType?: AuthType; jumpHost?: string; jumpPort?: number; jumpUser?: string }[]) => number;
+  importProfiles: (entries: {
+    name: string; host: string; port: number; user: string;
+    authType?: AuthType; identityFile?: string;
+    jumpHost?: string; jumpPort?: number; jumpUser?: string; jumpIdentityFile?: string;
+  }[]) => number;
 }
 
 export function useProfiles(): UseProfilesReturn {
@@ -73,7 +77,11 @@ export function useProfiles(): UseProfilesReturn {
 
   // 既存プロフィールと name+host が重複しないものだけを追加し、追加件数を返す
   const importProfiles = useCallback(
-    (entries: { name: string; host: string; port: number; user: string; authType?: AuthType; jumpHost?: string; jumpPort?: number; jumpUser?: string }[]): number => {
+    (entries: {
+      name: string; host: string; port: number; user: string;
+      authType?: AuthType; identityFile?: string;
+      jumpHost?: string; jumpPort?: number; jumpUser?: string; jumpIdentityFile?: string;
+    }[]): number => {
       let added = 0;
       setProfiles((prev) => {
         const existingKeys = new Set(prev.map((p) => `${p.name}|${p.host}`));
@@ -85,9 +93,16 @@ export function useProfiles(): UseProfilesReturn {
             host: e.host,
             port: e.port,
             user: e.user,
-            authType: e.authType ?? 'vault',
+            // IdentityFile があれば pubkey 認証、なければ vault をデフォルトに
+            authType: e.authType ?? (e.identityFile ? 'pubkey' : 'vault'),
             createdAt: new Date().toISOString(),
-            ...(e.jumpHost ? { jumpHost: e.jumpHost, jumpPort: e.jumpPort, jumpUser: e.jumpUser } : {}),
+            ...(e.identityFile ? { identityFilePath: e.identityFile } : {}),
+            ...(e.jumpHost ? {
+              jumpHost: e.jumpHost,
+              jumpPort: e.jumpPort,
+              jumpUser: e.jumpUser,
+              ...(e.jumpIdentityFile ? { jumpIdentityFilePath: e.jumpIdentityFile } : {}),
+            } : {}),
           }));
         added = newProfiles.length;
         const updated = [...newProfiles, ...prev].slice(0, MAX_PROFILES);
