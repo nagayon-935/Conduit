@@ -36,6 +36,7 @@ interface ImportEntry {
   authType?: AuthType;
   identityFile?: string;
   jumpHost?: string; jumpPort?: number; jumpUser?: string;
+  jumpIdentityFile?: string;
 }
 
 interface UseProfilesReturn {
@@ -123,6 +124,12 @@ export function useProfiles(): UseProfilesReturn {
               const keyBasename = incoming.identityFile
                 ? (incoming.identityFile.split('/').pop()?.split('\\').pop() ?? incoming.identityFile)
                 : undefined;
+              const jumpKeyBasename = incoming.jumpIdentityFile
+                ? (incoming.jumpIdentityFile.split('/').pop()?.split('\\').pop() ?? incoming.jumpIdentityFile)
+                : undefined;
+              const resolvedJumpAuthType: AuthType | undefined = incoming.jumpIdentityFile
+                ? 'pubkey'
+                : (incoming.jumpHost ? (p.jumpAuthType ?? 'vault') : undefined);
               // 接続情報を更新しつつ保存済みの鍵内容は引き継ぐ
               return {
                 ...p,
@@ -132,7 +139,13 @@ export function useProfiles(): UseProfilesReturn {
                 authType: resolvedAuthType,
                 // 鍵内容が未保存かつ IdentityFile 情報があればファイル名だけ更新
                 ...(keyBasename && !p.privateKeyContent ? { privateKeyName: keyBasename } : {}),
-                ...(incoming.jumpHost ? { jumpHost: incoming.jumpHost, jumpPort: incoming.jumpPort, jumpUser: incoming.jumpUser } : {}),
+                ...(incoming.jumpHost ? {
+                  jumpHost: incoming.jumpHost,
+                  jumpPort: incoming.jumpPort,
+                  jumpUser: incoming.jumpUser,
+                  jumpAuthType: resolvedJumpAuthType,
+                  ...(jumpKeyBasename && !p.jumpPrivateKeyContent ? { jumpPrivateKeyName: jumpKeyBasename } : {}),
+                } : {}),
               };
             })
           : [...prev];
@@ -143,6 +156,10 @@ export function useProfiles(): UseProfilesReturn {
             const keyBasename = e.identityFile
               ? (e.identityFile.split('/').pop()?.split('\\').pop() ?? e.identityFile)
               : undefined;
+            const jumpKeyBasename = e.jumpIdentityFile
+              ? (e.jumpIdentityFile.split('/').pop()?.split('\\').pop() ?? e.jumpIdentityFile)
+              : undefined;
+            const resolvedJumpAuthType: AuthType = e.jumpIdentityFile ? 'pubkey' : 'vault';
             next.unshift({
               id: generateId(),
               name: e.name,
@@ -152,7 +169,13 @@ export function useProfiles(): UseProfilesReturn {
               authType: resolvedAuthType,
               createdAt: new Date().toISOString(),
               ...(keyBasename ? { privateKeyName: keyBasename } : {}),
-              ...(e.jumpHost ? { jumpHost: e.jumpHost, jumpPort: e.jumpPort, jumpUser: e.jumpUser } : {}),
+              ...(e.jumpHost ? {
+                jumpHost: e.jumpHost,
+                jumpPort: e.jumpPort,
+                jumpUser: e.jumpUser,
+                jumpAuthType: resolvedJumpAuthType,
+                ...(jumpKeyBasename ? { jumpPrivateKeyName: jumpKeyBasename } : {}),
+              } : {}),
             });
             added++;
           });

@@ -9,6 +9,7 @@ export interface SshConfigHost {
   jumpHost?: string;
   jumpPort?: number;
   jumpUser?: string;
+  jumpIdentityFile?: string;
 }
 
 /** 1 ブロック分の生設定 */
@@ -79,6 +80,7 @@ export function parseSshConfig(text: string): SshConfigHost[] {
     let jumpHost: string | undefined;
     let jumpPort: number | undefined;
     let jumpUser: string | undefined;
+    let jumpIdentityFile: string | undefined;
 
     for (const line of lines.slice(1)) {
       const m = line.match(/^\s*(\w+)\s+(.+)$/);
@@ -111,9 +113,10 @@ export function parseSshConfig(text: string): SshConfigHost[] {
       // ProxyJump 値が Host エイリアスと一致する場合、そこから情報を解決する
       const jumpRaw = rawByAlias.get(jh);
       if (jumpRaw) {
-        if (!ju)       ju = jumpRaw.user;   // user@ がなければエイリアスの User を使う
-        if (jp === 22) jp = jumpRaw.port;   // :port がなければエイリアスの Port を使う
-        jh = jumpRaw.hostname;              // HostName に解決
+        if (!ju)               ju = jumpRaw.user;         // user@ がなければエイリアスの User を使う
+        if (jp === 22)         jp = jumpRaw.port;         // :port がなければエイリアスの Port を使う
+        jh = jumpRaw.hostname;                            // HostName に解決
+        if (jumpRaw.identityFile) jumpIdentityFile = jumpRaw.identityFile;
       }
 
       jumpHost = jh;
@@ -128,7 +131,7 @@ export function parseSshConfig(text: string): SshConfigHost[] {
       port: raw.port,
       user: raw.user,
       ...(raw.identityFile ? { identityFile: raw.identityFile } : {}),
-      ...(jumpHost ? { jumpHost, jumpPort, jumpUser } : {}),
+      ...(jumpHost ? { jumpHost, jumpPort, jumpUser, ...(jumpIdentityFile ? { jumpIdentityFile } : {}) } : {}),
     });
   }
 
