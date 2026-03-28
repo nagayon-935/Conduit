@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"log/slog"
 	"net/http"
+	"os"
+	"path/filepath"
 	"strings"
 	"time"
 
@@ -26,15 +28,17 @@ type ConnectRequest struct {
 	User       string `json:"user"`
 	AuthType   string `json:"auth_type"`             // "vault" | "password" | "pubkey"
 	Password   string `json:"password,omitempty"`
-	PrivateKey string `json:"private_key,omitempty"`
+	PrivateKey     string `json:"private_key,omitempty"`
+	PrivateKeyPath string `json:"private_key_path,omitempty"` // ファイルパス指定（バックエンドが読む）
 
 	// ProxyJump (optional — omit or set JumpHost="" to disable)
-	JumpHost       string `json:"jump_host,omitempty"`
-	JumpPort       int    `json:"jump_port,omitempty"`
-	JumpUser       string `json:"jump_user,omitempty"`
-	JumpAuthType   string `json:"jump_auth_type,omitempty"` // "vault" | "password" | "pubkey"
-	JumpPassword   string `json:"jump_password,omitempty"`
-	JumpPrivateKey string `json:"jump_private_key,omitempty"`
+	JumpHost           string `json:"jump_host,omitempty"`
+	JumpPort           int    `json:"jump_port,omitempty"`
+	JumpUser           string `json:"jump_user,omitempty"`
+	JumpAuthType       string `json:"jump_auth_type,omitempty"` // "vault" | "password" | "pubkey"
+	JumpPassword       string `json:"jump_password,omitempty"`
+	JumpPrivateKey     string `json:"jump_private_key,omitempty"`
+	JumpPrivateKeyPath string `json:"jump_private_key_path,omitempty"`
 }
 
 // ConnectResponse is returned on a successful connection.
@@ -53,6 +57,24 @@ func (h *Handler) handleConnect(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	defer r.Body.Close()
+
+	// パス指定の場合はバックエンド側でファイルを読み込む
+	if req.PrivateKey == "" && req.PrivateKeyPath != "" {
+		data, err := readKeyFile(req.PrivateKeyPath)
+		if err != nil {
+			apiError(w, http.StatusBadRequest, "cannot read private key: "+err.Error(), "KEY_READ_ERROR")
+			return
+		}
+		req.PrivateKey = string(data)
+	}
+	if req.JumpPrivateKey == "" && req.JumpPrivateKeyPath != "" {
+		data, err := readKeyFile(req.JumpPrivateKeyPath)
+		if err != nil {
+			apiError(w, http.StatusBadRequest, "cannot read jump private key: "+err.Error(), "KEY_READ_ERROR")
+			return
+		}
+		req.JumpPrivateKey = string(data)
+	}
 
 	if err := validateConnectRequest(req); err != nil {
 		apiError(w, http.StatusBadRequest, err.Error(), "INVALID_REQUEST")
@@ -204,8 +226,8 @@ func validateConnectRequest(req ConnectRequest) error {
 	if req.AuthType == "password" && strings.TrimSpace(req.Password) == "" {
 		return fmt.Errorf("password is required for password auth")
 	}
-	if req.AuthType == "pubkey" && strings.TrimSpace(req.PrivateKey) == "" {
-		return fmt.Errorf("private_key is required for pubkey auth")
+	if req.AuthType == "pubkey" && strings.TrimSpace(req.PrivateKey) == "" && strings.TrimSpace(req.PrivateKeyPath) == "" {
+		return fmt.Errorf("private_key or private_key_path is required for pubkey auth")
 	}
 	// ProxyJump validation (only when jump_host is set)
 	if strings.TrimSpace(req.JumpHost) != "" {
@@ -218,9 +240,21 @@ func validateConnectRequest(req ConnectRequest) error {
 		if req.JumpAuthType == "password" && strings.TrimSpace(req.JumpPassword) == "" {
 			return fmt.Errorf("jump_password is required for jump host password auth")
 		}
-		if req.JumpAuthType == "pubkey" && strings.TrimSpace(req.JumpPrivateKey) == "" {
-			return fmt.Errorf("jump_private_key is required for jump host pubkey auth")
+		if req.JumpAuthType == "pubkey" && strings.TrimSpace(req.JumpPrivateKey) == "" && strings.TrimSpace(req.JumpPrivateKeyPath) == "" {
+			return fmt.Errorf("jump_private_key or jump_private_key_path is required for jump host pubkey auth")
 		}
 	}
 	return nil
+}
+
+// readKeyFile は ~ を展開してファイルを読み込む。
+func readKeyFile(path string) ([]byte, error) {
+	if strings.HasPrefix(path, "~/") {
+		home, err := os.UserHomeDir()
+		if err != nil {
+			return nil, fmt.Errorf("cannot resolve home directory: %w", err)
+		}
+		path = filepath.Join(home, path[2:])
+	}
+	return os.ReadFile(path)
 }

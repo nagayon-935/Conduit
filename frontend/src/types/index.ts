@@ -7,6 +7,7 @@ export interface ConnectRequest {
   auth_type: AuthType;
   password?: string;
   private_key?: string;
+  private_key_path?: string;
   // ProxyJump (omit or set jump_host='' to disable)
   jump_host?: string;
   jump_port?: number;
@@ -14,6 +15,7 @@ export interface ConnectRequest {
   jump_auth_type?: AuthType;
   jump_password?: string;
   jump_private_key?: string;
+  jump_private_key_path?: string;
 }
 
 export interface ConnectResponse {
