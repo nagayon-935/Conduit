@@ -38,11 +38,12 @@ export function ConnectForm({
   const [error, setError] = useState<string | null>(null);
   const isLoading = appState === 'connecting';
 
-  const { profiles, saveProfile, deleteProfile, importProfiles } = useProfiles();
+  const { profiles, saveProfile, deleteProfile, importProfiles, storeProfileKeys } = useProfiles();
   const [showSaveProfile, setShowSaveProfile] = useState(false);
   const [profileName, setProfileName] = useState('');
   const [importMessage, setImportMessage] = useState<string | null>(null);
   const [sshConfigHandle, setSshConfigHandle] = useState<FileSystemFileHandle | null>(null);
+  const [loadedProfileId, setLoadedProfileId] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const navMenuRef = useRef<HTMLDivElement>(null);
   const [navMenuOpen, setNavMenuOpen] = useState(false);
@@ -111,7 +112,8 @@ export function ConnectForm({
   }
 
   function handleHistoryClick(entry: HistoryEntry) {
-    setFields({ host: entry.host, port: String(entry.port), user: entry.user, authType: entry.authType ?? 'vault', password: '', privateKey: '', privateKeyName: '', identityFilePath: '', jumpHost: '', jumpPort: '22', jumpUser: '', jumpAuthType: 'vault', jumpPassword: '', jumpPrivateKey: '', jumpPrivateKeyName: '', jumpIdentityFilePath: '' });
+    setLoadedProfileId(null);
+    setFields({ host: entry.host, port: String(entry.port), user: entry.user, authType: entry.authType ?? 'vault', password: '', privateKey: '', privateKeyName: '', jumpHost: '', jumpPort: '22', jumpUser: '', jumpAuthType: 'vault', jumpPassword: '', jumpPrivateKey: '', jumpPrivateKeyName: '' });
     if (error) setError(null);
   }
 
@@ -145,6 +147,10 @@ export function ConnectForm({
       const text = (ev.target?.result as string) ?? '';
       if (entryIndex === 'main') {
         setFields((prev) => ({ ...prev, privateKey: text, privateKeyName: fileName }));
+        // main エントリにプロファイルが読み込まれていれば鍵内容を自動保存
+        if (loadedProfileId) {
+          storeProfileKeys(loadedProfileId, { privateKeyContent: text, privateKeyName: fileName });
+        }
       } else {
         setExtraEntries((prev) => prev.map((entry, i) =>
           i === entryIndex ? { ...entry, privateKey: text, privateKeyName: fileName } : entry
@@ -164,6 +170,9 @@ export function ConnectForm({
       const text = (ev.target?.result as string) ?? '';
       if (entryIndex === 'main') {
         setFields((prev) => ({ ...prev, jumpPrivateKey: text, jumpPrivateKeyName: fileName }));
+        if (loadedProfileId) {
+          storeProfileKeys(loadedProfileId, { jumpPrivateKeyContent: text, jumpPrivateKeyName: fileName });
+        }
       } else {
         setExtraEntries((prev) => prev.map((entry, i) =>
           i === entryIndex ? { ...entry, jumpPrivateKey: text, jumpPrivateKeyName: fileName } : entry
@@ -258,12 +267,16 @@ export function ConnectForm({
     if (validationError) { setError(validationError); return; }
     const name = profileName.trim() || `${fields.user}@${fields.host}`;
     const jh = fields.jumpHost.trim();
-    saveProfile(name, fields.host.trim(), parseInt(fields.port, 10), fields.user.trim(), fields.authType, jh ? {
-      jumpHost: jh,
-      jumpPort: parseInt(fields.jumpPort, 10),
-      jumpUser: fields.jumpUser.trim() || undefined,
-      jumpAuthType: fields.jumpAuthType,
-    } : undefined);
+    saveProfile(
+      name, fields.host.trim(), parseInt(fields.port, 10), fields.user.trim(), fields.authType,
+      jh ? { jumpHost: jh, jumpPort: parseInt(fields.jumpPort, 10), jumpUser: fields.jumpUser.trim() || undefined, jumpAuthType: fields.jumpAuthType } : undefined,
+      {
+        privateKeyContent: fields.privateKey || undefined,
+        privateKeyName: fields.privateKeyName || undefined,
+        jumpPrivateKeyContent: fields.jumpPrivateKey || undefined,
+        jumpPrivateKeyName: fields.jumpPrivateKeyName || undefined,
+      },
+    );
     setProfileName('');
     setShowSaveProfile(false);
   }
@@ -271,14 +284,19 @@ export function ConnectForm({
   function handleLoadProfile(id: string) {
     const p = profiles.find((x) => x.id === id);
     if (p) {
+      setLoadedProfileId(id);
       setFields({
         host: p.host, port: String(p.port), user: p.user, authType: p.authType ?? 'vault',
-        password: '', privateKey: '', privateKeyName: '', identityFilePath: p.identityFilePath ?? '',
+        password: '',
+        privateKey: p.privateKeyContent ?? '',
+        privateKeyName: p.privateKeyName ?? '',
         jumpHost: p.jumpHost ?? '',
         jumpPort: p.jumpPort ? String(p.jumpPort) : '22',
         jumpUser: p.jumpUser ?? '',
         jumpAuthType: p.jumpAuthType ?? 'vault',
-        jumpPassword: '', jumpPrivateKey: '', jumpPrivateKeyName: '', jumpIdentityFilePath: p.jumpIdentityFilePath ?? '',
+        jumpPassword: '',
+        jumpPrivateKey: p.jumpPrivateKeyContent ?? '',
+        jumpPrivateKeyName: p.jumpPrivateKeyName ?? '',
       });
       if (error) setError(null);
     }
@@ -291,12 +309,16 @@ export function ConnectForm({
         prev.map((entry, i) =>
           i === index ? {
             host: p.host, port: String(p.port), user: p.user, authType: p.authType ?? 'vault',
-            password: '', privateKey: '', privateKeyName: '', identityFilePath: p.identityFilePath ?? '',
+            password: '',
+            privateKey: p.privateKeyContent ?? '',
+            privateKeyName: p.privateKeyName ?? '',
             jumpHost: p.jumpHost ?? '',
             jumpPort: p.jumpPort ? String(p.jumpPort) : '22',
             jumpUser: p.jumpUser ?? '',
             jumpAuthType: p.jumpAuthType ?? 'vault',
-            jumpPassword: '', jumpPrivateKey: '', jumpPrivateKeyName: '', jumpIdentityFilePath: p.jumpIdentityFilePath ?? '',
+            jumpPassword: '',
+            jumpPrivateKey: p.jumpPrivateKeyContent ?? '',
+            jumpPrivateKeyName: p.jumpPrivateKeyName ?? '',
           } : entry
         )
       );
@@ -307,7 +329,7 @@ export function ConnectForm({
   function handleExtraLoadHistory(index: number, h: HistoryEntry) {
     setExtraEntries((prev) =>
       prev.map((entry, i) =>
-        i === index ? { host: h.host, port: String(h.port), user: h.user, authType: h.authType ?? 'vault', password: '', privateKey: '', privateKeyName: '', identityFilePath: '', jumpHost: '', jumpPort: '22', jumpUser: '', jumpAuthType: 'vault', jumpPassword: '', jumpPrivateKey: '', jumpPrivateKeyName: '', jumpIdentityFilePath: '' } : entry
+        i === index ? { host: h.host, port: String(h.port), user: h.user, authType: h.authType ?? 'vault', password: '', privateKey: '', privateKeyName: '', jumpHost: '', jumpPort: '22', jumpUser: '', jumpAuthType: 'vault', jumpPassword: '', jumpPrivateKey: '', jumpPrivateKeyName: '' } : entry
       )
     );
     if (error) setError(null);
@@ -384,10 +406,6 @@ export function ConnectForm({
               {entry.privateKeyName ? (
                 <span className="cf-key-filename" title={entry.privateKeyName}>
                   {entry.privateKeyName}
-                </span>
-              ) : entry.identityFilePath ? (
-                <span className="cf-key-hint" title={entry.identityFilePath}>
-                  {entry.identityFilePath}
                 </span>
               ) : (
                 <span className="cf-key-placeholder">No file selected</span>
@@ -513,8 +531,6 @@ export function ConnectForm({
                   </button>
                   {entry.jumpPrivateKeyName ? (
                     <span className="cf-key-filename" title={entry.jumpPrivateKeyName}>{entry.jumpPrivateKeyName}</span>
-                  ) : entry.jumpIdentityFilePath ? (
-                    <span className="cf-key-hint" title={entry.jumpIdentityFilePath}>{entry.jumpIdentityFilePath}</span>
                   ) : (
                     <span className="cf-key-placeholder">No file selected</span>
                   )}

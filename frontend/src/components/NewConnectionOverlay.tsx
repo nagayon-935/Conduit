@@ -96,7 +96,7 @@ export function NewConnectionOverlay({
 
   function fillFromHistory(entry: HistoryEntry) {
     if (isLoading) return;
-    setFields({ host: entry.host, port: String(entry.port), user: entry.user, authType: entry.authType ?? 'vault', password: '', privateKey: '', privateKeyName: '', identityFilePath: '', jumpHost: '', jumpPort: '22', jumpUser: '', jumpAuthType: 'vault', jumpPassword: '', jumpPrivateKey: '', jumpPrivateKeyName: '', jumpIdentityFilePath: '' });
+    setFields({ host: entry.host, port: String(entry.port), user: entry.user, authType: entry.authType ?? 'vault', password: '', privateKey: '', privateKeyName: '', jumpHost: '', jumpPort: '22', jumpUser: '', jumpAuthType: 'vault', jumpPassword: '', jumpPrivateKey: '', jumpPrivateKeyName: '' });
     if (error) setError(null);
   }
 
@@ -105,12 +105,12 @@ export function NewConnectionOverlay({
     setFields({
       host: profile.host, port: String(profile.port), user: profile.user,
       authType: profile.authType ?? 'vault',
-      password: '', privateKey: '', privateKeyName: '', identityFilePath: profile.identityFilePath ?? '',
+      password: '', privateKey: profile.privateKeyContent ?? '', privateKeyName: profile.privateKeyName ?? '',
       jumpHost: profile.jumpHost ?? '',
       jumpPort: profile.jumpPort ? String(profile.jumpPort) : '22',
       jumpUser: profile.jumpUser ?? '',
       jumpAuthType: profile.jumpAuthType ?? 'vault',
-      jumpPassword: '', jumpPrivateKey: '', jumpPrivateKeyName: '', jumpIdentityFilePath: profile.jumpIdentityFilePath ?? '',
+      jumpPassword: '', jumpPrivateKey: profile.jumpPrivateKeyContent ?? '', jumpPrivateKeyName: profile.jumpPrivateKeyName ?? '',
     });
     if (error) setError(null);
   }

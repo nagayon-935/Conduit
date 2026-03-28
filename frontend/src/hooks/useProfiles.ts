@@ -24,24 +24,32 @@ interface JumpParams {
   jumpAuthType?: AuthType;
 }
 
+interface KeyParams {
+  privateKeyContent?: string;
+  privateKeyName?: string;
+  jumpPrivateKeyContent?: string;
+  jumpPrivateKeyName?: string;
+}
+
 interface ImportEntry {
   name: string; host: string; port: number; user: string;
-  authType?: AuthType; identityFile?: string;
-  jumpHost?: string; jumpPort?: number; jumpUser?: string; jumpIdentityFile?: string;
+  authType?: AuthType;
+  jumpHost?: string; jumpPort?: number; jumpUser?: string;
 }
 
 interface UseProfilesReturn {
   profiles: Profile[];
-  saveProfile: (name: string, host: string, port: number, user: string, authType: AuthType, jump?: JumpParams) => void;
+  saveProfile: (name: string, host: string, port: number, user: string, authType: AuthType, jump?: JumpParams, keys?: KeyParams) => void;
   deleteProfile: (id: string) => void;
   loadProfile: (id: string) => Profile | undefined;
+  storeProfileKeys: (id: string, keys: KeyParams) => void;
   importProfiles: (entries: ImportEntry[], upsert?: boolean) => { added: number; updated: number };
 }
 
 export function useProfiles(): UseProfilesReturn {
   const [profiles, setProfiles] = useState<Profile[]>(loadFromStorage);
 
-  const saveProfile = useCallback((name: string, host: string, port: number, user: string, authType: AuthType, jump?: JumpParams) => {
+  const saveProfile = useCallback((name: string, host: string, port: number, user: string, authType: AuthType, jump?: JumpParams, keys?: KeyParams) => {
     const newProfile: Profile = {
       id: generateId(),
       name,
@@ -50,11 +58,13 @@ export function useProfiles(): UseProfilesReturn {
       user,
       authType,
       createdAt: new Date().toISOString(),
+      ...(keys?.privateKeyContent ? { privateKeyContent: keys.privateKeyContent, privateKeyName: keys.privateKeyName } : {}),
       ...(jump?.jumpHost ? {
         jumpHost: jump.jumpHost,
         jumpPort: jump.jumpPort,
         jumpUser: jump.jumpUser,
         jumpAuthType: jump.jumpAuthType,
+        ...(keys?.jumpPrivateKeyContent ? { jumpPrivateKeyContent: keys.jumpPrivateKeyContent, jumpPrivateKeyName: keys.jumpPrivateKeyName } : {}),
       } : {}),
     };
     setProfiles((prev) => {
@@ -77,28 +87,23 @@ export function useProfiles(): UseProfilesReturn {
     [profiles],
   );
 
-  // ssh_config エントリを Profile に変換するヘルパー
-  function toProfile(e: ImportEntry, existingId?: string): Profile {
-    return {
-      id: existingId ?? generateId(),
-      name: e.name,
-      host: e.host,
-      port: e.port,
-      user: e.user,
-      authType: e.authType ?? (e.identityFile ? 'pubkey' : 'vault'),
-      createdAt: new Date().toISOString(),
-      ...(e.identityFile ? { identityFilePath: e.identityFile } : {}),
-      ...(e.jumpHost ? {
-        jumpHost: e.jumpHost,
-        jumpPort: e.jumpPort,
-        jumpUser: e.jumpUser,
-        ...(e.jumpIdentityFile ? { jumpIdentityFilePath: e.jumpIdentityFile } : {}),
-      } : {}),
-    };
-  }
+  // 鍵ファイル選択時にプロファイルへ内容を保存する
+  const storeProfileKeys = useCallback((id: string, keys: KeyParams) => {
+    setProfiles((prev) => {
+      const updated = prev.map((p) =>
+        p.id !== id ? p : {
+          ...p,
+          ...(keys.privateKeyContent !== undefined ? { privateKeyContent: keys.privateKeyContent, privateKeyName: keys.privateKeyName } : {}),
+          ...(keys.jumpPrivateKeyContent !== undefined ? { jumpPrivateKeyContent: keys.jumpPrivateKeyContent, jumpPrivateKeyName: keys.jumpPrivateKeyName } : {}),
+        }
+      );
+      saveToStorage(updated);
+      return updated;
+    });
+  }, []);
 
   // upsert=false: 重複をスキップして追加のみ
-  // upsert=true : 既存プロファイルを上書き更新し、新規は追加
+  // upsert=true : 既存プロファイルを上書き更新し、新規は追加（鍵内容は保持）
   const importProfiles = useCallback(
     (entries: ImportEntry[], upsert = false): { added: number; updated: number } => {
       let added = 0;
@@ -110,13 +115,30 @@ export function useProfiles(): UseProfilesReturn {
               const incoming = entries.find((e) => `${e.name}|${e.host}` === `${p.name}|${p.host}`);
               if (!incoming) return p;
               updated++;
-              return toProfile(incoming, p.id);
+              // 接続情報を更新しつつ保存済みの鍵内容は引き継ぐ
+              return {
+                ...p,
+                host: incoming.host,
+                port: incoming.port,
+                user: incoming.user,
+                authType: incoming.authType ?? (p.authType !== 'vault' ? p.authType : 'vault'),
+                ...(incoming.jumpHost ? { jumpHost: incoming.jumpHost, jumpPort: incoming.jumpPort, jumpUser: incoming.jumpUser } : {}),
+              };
             })
           : [...prev];
         entries
           .filter((e) => !existingMap.has(`${e.name}|${e.host}`))
           .forEach((e) => {
-            next.unshift(toProfile(e));
+            next.unshift({
+              id: generateId(),
+              name: e.name,
+              host: e.host,
+              port: e.port,
+              user: e.user,
+              authType: e.authType ?? 'vault',
+              createdAt: new Date().toISOString(),
+              ...(e.jumpHost ? { jumpHost: e.jumpHost, jumpPort: e.jumpPort, jumpUser: e.jumpUser } : {}),
+            });
             added++;
           });
         const result = next.slice(0, MAX_PROFILES);
@@ -128,5 +150,5 @@ export function useProfiles(): UseProfilesReturn {
     [],
   );
 
-  return { profiles, saveProfile, deleteProfile, loadProfile, importProfiles };
+  return { profiles, saveProfile, deleteProfile, loadProfile, storeProfileKeys, importProfiles };
 }

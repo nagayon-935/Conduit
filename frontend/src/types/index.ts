@@ -7,7 +7,6 @@ export interface ConnectRequest {
   auth_type: AuthType;
   password?: string;
   private_key?: string;
-  private_key_path?: string;
   // ProxyJump (omit or set jump_host='' to disable)
   jump_host?: string;
   jump_port?: number;
@@ -15,7 +14,6 @@ export interface ConnectRequest {
   jump_auth_type?: AuthType;
   jump_password?: string;
   jump_private_key?: string;
-  jump_private_key_path?: string;
 }
 
 export interface ConnectResponse {
@@ -52,14 +50,16 @@ export interface Profile {
   user: string;
   authType: AuthType;
   createdAt: string;
-  /** ssh_config の IdentityFile パス（ヒント表示用） */
-  identityFilePath?: string;
+  /** 保存済み秘密鍵の PEM 内容 */
+  privateKeyContent?: string;
+  /** 保存済み秘密鍵のファイル名（表示用） */
+  privateKeyName?: string;
   jumpHost?: string;
   jumpPort?: number;
   jumpUser?: string;
   jumpAuthType?: AuthType;
-  /** ssh_config の ProxyJump 先 IdentityFile パス（ヒント表示用） */
-  jumpIdentityFilePath?: string;
+  jumpPrivateKeyContent?: string;
+  jumpPrivateKeyName?: string;
 }
 
 export interface HistoryEntry {
