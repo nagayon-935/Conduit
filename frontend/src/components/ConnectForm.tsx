@@ -43,6 +43,10 @@ export function ConnectForm({
   const [profileName, setProfileName] = useState('');
   const [importMessage, setImportMessage] = useState<string | null>(null);
   const [sshConfigFile, setSshConfigFile] = useState<File | null>(null);
+  const [pendingKeyPicks, setPendingKeyPicks] = useState<Array<{ basename: string; keyType: 'main' | 'jump' }>>([]);
+  const pendingKeyInputRef = useRef<HTMLInputElement>(null);
+  const profilesRef = useRef(profiles);
+  profilesRef.current = profiles;
   const [loadedProfileId, setLoadedProfileId] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const navMenuRef = useRef<HTMLDivElement>(null);
@@ -88,6 +92,25 @@ export function ConnectForm({
       parts.length > 0 ? `Imported: ${parts.join(', ')}.` : 'No changes.',
     );
     setTimeout(() => setImportMessage(null), 3000);
+
+    // IdentityFile があるエントリの鍵ファイル選択キューを構築
+    const picks: Array<{ basename: string; keyType: 'main' | 'jump' }> = [];
+    const seen = new Set<string>();
+    for (const entry of entries) {
+      if (entry.identityFile) {
+        const bn = entry.identityFile.split('/').pop()?.split('\\').pop() ?? entry.identityFile;
+        const k = `main:${bn}`;
+        const alreadyStored = profiles.some(p => p.privateKeyName === bn && p.privateKeyContent);
+        if (!alreadyStored && !seen.has(k)) { seen.add(k); picks.push({ basename: bn, keyType: 'main' }); }
+      }
+      if (entry.jumpIdentityFile) {
+        const bn = entry.jumpIdentityFile.split('/').pop()?.split('\\').pop() ?? entry.jumpIdentityFile;
+        const k = `jump:${bn}`;
+        const alreadyStored = profiles.some(p => p.jumpPrivateKeyName === bn && p.jumpPrivateKeyContent);
+        if (!alreadyStored && !seen.has(k)) { seen.add(k); picks.push({ basename: bn, keyType: 'jump' }); }
+      }
+    }
+    if (picks.length > 0) setPendingKeyPicks(picks);
   }
 
   function handleFileChange(e: React.ChangeEvent<HTMLInputElement>) {
@@ -95,6 +118,27 @@ export function ConnectForm({
     if (!file) return;
     setSshConfigFile(file);
     processConfigFile(file, false);
+    e.target.value = '';
+  }
+
+  function handlePendingKeySelected(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file || pendingKeyPicks.length === 0) return;
+    const { basename, keyType } = pendingKeyPicks[0];
+    const reader = new FileReader();
+    reader.onload = (ev) => {
+      const content = (ev.target?.result as string) ?? '';
+      // profilesRef.current は最新のプロファイル一覧を参照
+      for (const p of profilesRef.current) {
+        if (keyType === 'main' && p.privateKeyName === basename && !p.privateKeyContent) {
+          storeProfileKeys(p.id, { privateKeyContent: content, privateKeyName: file.name });
+        } else if (keyType === 'jump' && p.jumpPrivateKeyName === basename && !p.jumpPrivateKeyContent) {
+          storeProfileKeys(p.id, { jumpPrivateKeyContent: content, jumpPrivateKeyName: file.name });
+        }
+      }
+      setPendingKeyPicks(prev => prev.slice(1));
+    };
+    reader.readAsText(file);
     e.target.value = '';
   }
 
@@ -831,6 +875,46 @@ export function ConnectForm({
                 </button>
               </div>
             )}
+          {pendingKeyPicks.length > 0 && (
+            <div className="cf-key-pick-banner">
+              <input ref={pendingKeyInputRef} type="file" style={{ display: 'none' }} onChange={handlePendingKeySelected} />
+              <div className="cf-key-pick-info">
+                <span className="cf-key-pick-icon">🔑</span>
+                <span>
+                  Select key file: <strong>{pendingKeyPicks[0].basename}</strong>
+                  {pendingKeyPicks[0].keyType === 'jump' && <span className="cf-key-pick-jump">jump</span>}
+                </span>
+              </div>
+              <div className="cf-key-pick-actions">
+                <button
+                  type="button"
+                  className="cf-key-pick-select-btn"
+                  onClick={() => pendingKeyInputRef.current?.click()}
+                >
+                  Select
+                </button>
+                <button
+                  type="button"
+                  className="cf-key-pick-skip-btn"
+                  onClick={() => setPendingKeyPicks(prev => prev.slice(1))}
+                >
+                  Skip
+                </button>
+                {pendingKeyPicks.length > 1 && (
+                  <button
+                    type="button"
+                    className="cf-key-pick-skip-btn"
+                    onClick={() => setPendingKeyPicks([])}
+                  >
+                    Skip all
+                  </button>
+                )}
+                {pendingKeyPicks.length > 1 && (
+                  <span className="cf-key-pick-count">{pendingKeyPicks.length} remaining</span>
+                )}
+              </div>
+            </div>
+          )}
           {profiles.length > 0 && (
             <ul className="cf-profiles-list">
               {profiles.map((p) => (

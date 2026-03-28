@@ -486,6 +486,78 @@ input[type='number'] { -moz-appearance: textfield; appearance: textfield; }
   padding: 6px 0;
 }
 
+/* ── Key pick banner (post-import identity file selection) ─────────── */
+.cf-key-pick-banner {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 12px 14px;
+  margin-bottom: 10px;
+  background: rgba(255, 158, 100, 0.06);
+  border: 1px solid rgba(255, 158, 100, 0.25);
+  border-radius: 10px;
+}
+.cf-key-pick-info {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 14px;
+  color: #c0caf5;
+}
+.cf-key-pick-icon { font-size: 16px; }
+.cf-key-pick-info strong {
+  color: #ff9e64;
+  font-family: 'Menlo', 'Monaco', 'Courier New', monospace;
+}
+.cf-key-pick-jump {
+  font-size: 10px;
+  color: #ff9e64;
+  border: 1px solid rgba(255, 158, 100, 0.4);
+  border-radius: 3px;
+  padding: 1px 5px;
+  margin-left: 4px;
+  vertical-align: middle;
+}
+.cf-key-pick-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.cf-key-pick-select-btn {
+  padding: 6px 16px;
+  background: rgba(255, 158, 100, 0.12);
+  border: 1px solid rgba(255, 158, 100, 0.45);
+  border-radius: 6px;
+  color: #ff9e64;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.12s, border-color 0.12s;
+}
+.cf-key-pick-select-btn:hover {
+  background: rgba(255, 158, 100, 0.25);
+  border-color: rgba(255, 158, 100, 0.7);
+}
+.cf-key-pick-skip-btn {
+  padding: 5px 10px;
+  background: transparent;
+  border: 1px solid #2a2c3d;
+  border-radius: 6px;
+  color: #565f89;
+  font-size: 12px;
+  cursor: pointer;
+  transition: color 0.12s, border-color 0.12s;
+}
+.cf-key-pick-skip-btn:hover {
+  color: #c0caf5;
+  border-color: #414868;
+}
+.cf-key-pick-count {
+  font-size: 12px;
+  color: #565f89;
+  margin-left: auto;
+}
+
 .cf-profiles-list {
   list-style: none;
   margin: 0;
