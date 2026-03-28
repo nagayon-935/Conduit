@@ -45,8 +45,6 @@ export function ConnectForm({
   const [sshConfigFile, setSshConfigFile] = useState<File | null>(null);
   const [loadedProfileId, setLoadedProfileId] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const pendingKeyFileInputRef = useRef<HTMLInputElement>(null);
-  const pendingKeyPickRef = useRef<{ profileId: string; keyType: 'main' | 'jump' } | null>(null);
   const navMenuRef = useRef<HTMLDivElement>(null);
   const [navMenuOpen, setNavMenuOpen] = useState(false);
 
@@ -166,28 +164,6 @@ export function ConnectForm({
         setExtraEntries((prev) => prev.map((entry, i) =>
           i === entryIndex ? { ...entry, jumpPrivateKey: text, jumpPrivateKeyName: fileName } : entry
         ));
-      }
-    };
-    reader.readAsText(file);
-    e.target.value = '';
-  }
-
-  function handlePendingKeyPick(profileId: string, keyType: 'main' | 'jump') {
-    pendingKeyPickRef.current = { profileId, keyType };
-    pendingKeyFileInputRef.current?.click();
-  }
-
-  function handlePendingKeyFileChange(e: React.ChangeEvent<HTMLInputElement>) {
-    const file = e.target.files?.[0];
-    if (!file || !pendingKeyPickRef.current) return;
-    const { profileId, keyType } = pendingKeyPickRef.current;
-    const reader = new FileReader();
-    reader.onload = (ev) => {
-      const content = (ev.target?.result as string) ?? '';
-      if (keyType === 'main') {
-        storeProfileKeys(profileId, { privateKeyContent: content, privateKeyName: file.name });
-      } else {
-        storeProfileKeys(profileId, { jumpPrivateKeyContent: content, jumpPrivateKeyName: file.name });
       }
     };
     reader.readAsText(file);
@@ -796,13 +772,6 @@ export function ConnectForm({
             style={{ display: 'none' }}
             onChange={handleFileChange}
           />
-          {/* Pending key file picker (hidden) */}
-          <input
-            ref={pendingKeyFileInputRef}
-            type="file"
-            style={{ display: 'none' }}
-            onChange={handlePendingKeyFileChange}
-          />
 
           {error && <div className="cf-error" role="alert">{error}</div>}
           {importMessage && <div className="cf-import-message" role="status">{importMessage}</div>}
@@ -875,28 +844,6 @@ export function ConnectForm({
                     <span className="cf-profile-name">{p.name}</span>
                     <span className="cf-profile-detail">{p.host}:{p.port} · {p.user}</span>
                   </button>
-                  {p.authType === 'pubkey' && p.privateKeyName && !p.privateKeyContent && (
-                    <button
-                      type="button"
-                      className="cf-profile-key-btn"
-                      onClick={() => handlePendingKeyPick(p.id, 'main')}
-                      disabled={isLoading}
-                      title={`Select key file: ${p.privateKeyName}`}
-                    >
-                      🔑 {p.privateKeyName}
-                    </button>
-                  )}
-                  {p.jumpAuthType === 'pubkey' && p.jumpPrivateKeyName && !p.jumpPrivateKeyContent && (
-                    <button
-                      type="button"
-                      className="cf-profile-key-btn cf-profile-key-btn--jump"
-                      onClick={() => handlePendingKeyPick(p.id, 'jump')}
-                      disabled={isLoading}
-                      title={`Select jump key file: ${p.jumpPrivateKeyName}`}
-                    >
-                      🔑 {p.jumpPrivateKeyName} <span className="cf-profile-key-jump-label">jump</span>
-                    </button>
-                  )}
                   <button
                     type="button"
                     className="cf-profile-delete"

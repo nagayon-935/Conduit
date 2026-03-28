@@ -567,38 +567,6 @@ input[type='number'] { -moz-appearance: textfield; appearance: textfield; }
 }
 .cf-profile-delete:disabled { opacity: 0.4; cursor: not-allowed; }
 
-.cf-profile-key-btn {
-  display: flex;
-  align-items: center;
-  gap: 4px;
-  padding: 4px 10px;
-  background: rgba(255, 158, 100, 0.08);
-  border: 1px solid rgba(255, 158, 100, 0.35);
-  border-radius: 6px;
-  color: #ff9e64;
-  font-size: 12px;
-  font-family: 'Menlo', 'Monaco', 'Courier New', monospace;
-  cursor: pointer;
-  white-space: nowrap;
-  flex-shrink: 0;
-  transition: background 0.12s, border-color 0.12s;
-  line-height: 1.4;
-}
-.cf-profile-key-btn:hover:not(:disabled) {
-  background: rgba(255, 158, 100, 0.18);
-  border-color: rgba(255, 158, 100, 0.6);
-}
-.cf-profile-key-btn:disabled { opacity: 0.4; cursor: not-allowed; }
-
-.cf-profile-key-jump-label {
-  font-size: 10px;
-  opacity: 0.7;
-  border: 1px solid currentColor;
-  border-radius: 3px;
-  padding: 0 3px;
-  line-height: 1.5;
-}
-
 /* ── Extra host cards (same layout as main form) ─────────────────────── */
 .cf-extra-card {
   margin-top: clamp(10px, 1.2vh, 16px);
