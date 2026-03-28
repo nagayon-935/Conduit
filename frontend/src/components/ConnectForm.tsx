@@ -42,6 +42,7 @@ export function ConnectForm({
   const [showSaveProfile, setShowSaveProfile] = useState(false);
   const [profileName, setProfileName] = useState('');
   const [importMessage, setImportMessage] = useState<string | null>(null);
+  const [sshConfigHandle, setSshConfigHandle] = useState<FileSystemFileHandle | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const navMenuRef = useRef<HTMLDivElement>(null);
   const [navMenuOpen, setNavMenuOpen] = useState(false);
@@ -61,31 +62,51 @@ export function ConnectForm({
   // Per-entry jump key file input refs (main + extras)
   const jumpKeyFileRefs = useRef<(HTMLInputElement | null)[]>([]);
 
-  function handleImportClick() {
-    fileInputRef.current?.click();
+  async function handleImportClick() {
+    // File System Access API が使える場合はハンドルを保持して後で reload 可能に
+    if ('showOpenFilePicker' in window) {
+      try {
+        const [handle] = await (window as unknown as { showOpenFilePicker(o?: object): Promise<FileSystemFileHandle[]> })
+          .showOpenFilePicker({ multiple: false });
+        setSshConfigHandle(handle);
+        const file = await handle.getFile();
+        await processConfigFile(file, false);
+      } catch {
+        // ユーザーがキャンセルした場合は何もしない
+      }
+    } else {
+      fileInputRef.current?.click();
+    }
+  }
+
+  async function handleReloadConfig() {
+    if (!sshConfigHandle) return;
+    const file = await sshConfigHandle.getFile();
+    await processConfigFile(file, true);
+  }
+
+  async function processConfigFile(file: File, upsert: boolean) {
+    const text = await file.text();
+    const entries = parseSshConfig(text);
+    if (entries.length === 0) {
+      setImportMessage('No valid hosts found in the selected file.');
+      setTimeout(() => setImportMessage(null), 3000);
+      return;
+    }
+    const { added, updated } = importProfiles(entries, upsert);
+    const parts: string[] = [];
+    if (added > 0) parts.push(`${added} added`);
+    if (updated > 0) parts.push(`${updated} updated`);
+    setImportMessage(
+      parts.length > 0 ? `Imported: ${parts.join(', ')}.` : 'No changes.',
+    );
+    setTimeout(() => setImportMessage(null), 3000);
   }
 
   function handleFileChange(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
     if (!file) return;
-    const reader = new FileReader();
-    reader.onload = (ev) => {
-      const text = ev.target?.result as string;
-      const entries = parseSshConfig(text);
-      if (entries.length === 0) {
-        setImportMessage('No valid hosts found in the selected file.');
-        return;
-      }
-      const added = importProfiles(entries);
-      setImportMessage(
-        added > 0
-          ? `Imported ${added} profile${added > 1 ? 's' : ''}.`
-          : 'All hosts already exist as profiles.',
-      );
-      setTimeout(() => setImportMessage(null), 3000);
-    };
-    reader.readAsText(file);
-    // 同じファイルを再選択できるようにリセット
+    processConfigFile(file, false);
     e.target.value = '';
   }
 
@@ -774,6 +795,17 @@ export function ConnectForm({
                 >
                   Import ~/.ssh/config
                 </button>
+                {sshConfigHandle && (
+                  <button
+                    type="button"
+                    className="cf-reload-btn"
+                    onClick={handleReloadConfig}
+                    disabled={isLoading}
+                    title={`Reload: ${sshConfigHandle.name}`}
+                  >
+                    ↻ Reload
+                  </button>
+                )}
               </div>
             </div>
             {showSaveProfile && (

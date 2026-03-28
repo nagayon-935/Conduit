@@ -463,6 +463,22 @@ input[type='number'] { -moz-appearance: textfield; appearance: textfield; }
 }
 .cf-import-btn:disabled { opacity: 0.4; cursor: not-allowed; }
 
+.cf-reload-btn {
+  font-size: clamp(11px, 0.8vw, 12px);
+  color: #9ece6a;
+  background: none;
+  border: 1px solid #3b4072;
+  border-radius: 6px;
+  padding: 4px 10px;
+  cursor: pointer;
+  transition: background 0.12s, color 0.12s;
+}
+.cf-reload-btn:hover:not(:disabled) {
+  background: rgba(158, 206, 106, 0.1);
+  color: #b9df7a;
+}
+.cf-reload-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+
 .cf-import-message {
   font-size: clamp(12px, 0.9vw, 13px);
   color: #9ece6a;

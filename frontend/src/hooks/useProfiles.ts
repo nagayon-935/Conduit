@@ -24,16 +24,18 @@ interface JumpParams {
   jumpAuthType?: AuthType;
 }
 
+interface ImportEntry {
+  name: string; host: string; port: number; user: string;
+  authType?: AuthType; identityFile?: string;
+  jumpHost?: string; jumpPort?: number; jumpUser?: string; jumpIdentityFile?: string;
+}
+
 interface UseProfilesReturn {
   profiles: Profile[];
   saveProfile: (name: string, host: string, port: number, user: string, authType: AuthType, jump?: JumpParams) => void;
   deleteProfile: (id: string) => void;
   loadProfile: (id: string) => Profile | undefined;
-  importProfiles: (entries: {
-    name: string; host: string; port: number; user: string;
-    authType?: AuthType; identityFile?: string;
-    jumpHost?: string; jumpPort?: number; jumpUser?: string; jumpIdentityFile?: string;
-  }[]) => number;
+  importProfiles: (entries: ImportEntry[], upsert?: boolean) => { added: number; updated: number };
 }
 
 export function useProfiles(): UseProfilesReturn {
@@ -75,41 +77,53 @@ export function useProfiles(): UseProfilesReturn {
     [profiles],
   );
 
-  // 既存プロフィールと name+host が重複しないものだけを追加し、追加件数を返す
+  // ssh_config エントリを Profile に変換するヘルパー
+  function toProfile(e: ImportEntry, existingId?: string): Profile {
+    return {
+      id: existingId ?? generateId(),
+      name: e.name,
+      host: e.host,
+      port: e.port,
+      user: e.user,
+      authType: e.authType ?? (e.identityFile ? 'pubkey' : 'vault'),
+      createdAt: new Date().toISOString(),
+      ...(e.identityFile ? { identityFilePath: e.identityFile } : {}),
+      ...(e.jumpHost ? {
+        jumpHost: e.jumpHost,
+        jumpPort: e.jumpPort,
+        jumpUser: e.jumpUser,
+        ...(e.jumpIdentityFile ? { jumpIdentityFilePath: e.jumpIdentityFile } : {}),
+      } : {}),
+    };
+  }
+
+  // upsert=false: 重複をスキップして追加のみ
+  // upsert=true : 既存プロファイルを上書き更新し、新規は追加
   const importProfiles = useCallback(
-    (entries: {
-      name: string; host: string; port: number; user: string;
-      authType?: AuthType; identityFile?: string;
-      jumpHost?: string; jumpPort?: number; jumpUser?: string; jumpIdentityFile?: string;
-    }[]): number => {
+    (entries: ImportEntry[], upsert = false): { added: number; updated: number } => {
       let added = 0;
+      let updated = 0;
       setProfiles((prev) => {
-        const existingKeys = new Set(prev.map((p) => `${p.name}|${p.host}`));
-        const newProfiles: Profile[] = entries
-          .filter((e) => !existingKeys.has(`${e.name}|${e.host}`))
-          .map((e) => ({
-            id: generateId(),
-            name: e.name,
-            host: e.host,
-            port: e.port,
-            user: e.user,
-            // IdentityFile があれば pubkey 認証、なければ vault をデフォルトに
-            authType: e.authType ?? (e.identityFile ? 'pubkey' : 'vault'),
-            createdAt: new Date().toISOString(),
-            ...(e.identityFile ? { identityFilePath: e.identityFile } : {}),
-            ...(e.jumpHost ? {
-              jumpHost: e.jumpHost,
-              jumpPort: e.jumpPort,
-              jumpUser: e.jumpUser,
-              ...(e.jumpIdentityFile ? { jumpIdentityFilePath: e.jumpIdentityFile } : {}),
-            } : {}),
-          }));
-        added = newProfiles.length;
-        const updated = [...newProfiles, ...prev].slice(0, MAX_PROFILES);
-        saveToStorage(updated);
-        return updated;
+        const existingMap = new Map(prev.map((p) => [`${p.name}|${p.host}`, p]));
+        const next = upsert
+          ? prev.map((p) => {
+              const incoming = entries.find((e) => `${e.name}|${e.host}` === `${p.name}|${p.host}`);
+              if (!incoming) return p;
+              updated++;
+              return toProfile(incoming, p.id);
+            })
+          : [...prev];
+        entries
+          .filter((e) => !existingMap.has(`${e.name}|${e.host}`))
+          .forEach((e) => {
+            next.unshift(toProfile(e));
+            added++;
+          });
+        const result = next.slice(0, MAX_PROFILES);
+        saveToStorage(result);
+        return result;
       });
-      return added;
+      return { added, updated };
     },
     [],
   );
