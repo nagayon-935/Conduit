@@ -42,7 +42,8 @@ export function ConnectForm({
   const [showSaveProfile, setShowSaveProfile] = useState(false);
   const [profileName, setProfileName] = useState('');
   const [importMessage, setImportMessage] = useState<string | null>(null);
-  const [sshConfigHandle, setSshConfigHandle] = useState<FileSystemFileHandle | null>(null);
+  const [hasImportedConfig, setHasImportedConfig] = useState(false);
+  const importModeRef = useRef<'import' | 'reload'>('import');
   const [loadedProfileId, setLoadedProfileId] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const navMenuRef = useRef<HTMLDivElement>(null);
@@ -63,27 +64,14 @@ export function ConnectForm({
   // Per-entry jump key file input refs (main + extras)
   const jumpKeyFileRefs = useRef<(HTMLInputElement | null)[]>([]);
 
-  async function handleImportClick() {
-    // File System Access API が使える場合はハンドルを保持して後で reload 可能に
-    if ('showOpenFilePicker' in window) {
-      try {
-        const [handle] = await (window as unknown as { showOpenFilePicker(o?: object): Promise<FileSystemFileHandle[]> })
-          .showOpenFilePicker({ multiple: false });
-        setSshConfigHandle(handle);
-        const file = await handle.getFile();
-        await processConfigFile(file, false);
-      } catch {
-        // ユーザーがキャンセルした場合は何もしない
-      }
-    } else {
-      fileInputRef.current?.click();
-    }
+  function handleImportClick() {
+    importModeRef.current = 'import';
+    fileInputRef.current?.click();
   }
 
-  async function handleReloadConfig() {
-    if (!sshConfigHandle) return;
-    const file = await sshConfigHandle.getFile();
-    await processConfigFile(file, true);
+  function handleReloadClick() {
+    importModeRef.current = 'reload';
+    fileInputRef.current?.click();
   }
 
   async function processConfigFile(file: File, upsert: boolean) {
@@ -107,7 +95,9 @@ export function ConnectForm({
   function handleFileChange(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
     if (!file) return;
-    processConfigFile(file, false);
+    const upsert = importModeRef.current === 'reload';
+    processConfigFile(file, upsert);
+    setHasImportedConfig(true);
     e.target.value = '';
   }
 
@@ -811,13 +801,13 @@ export function ConnectForm({
                 >
                   Import ~/.ssh/config
                 </button>
-                {sshConfigHandle && (
+                {hasImportedConfig && (
                   <button
                     type="button"
                     className="cf-reload-btn"
-                    onClick={handleReloadConfig}
+                    onClick={handleReloadClick}
                     disabled={isLoading}
-                    title={`Reload: ${sshConfigHandle.name}`}
+                    title="Reload ~/.ssh/config (re-pick file)"
                   >
                     ↻ Reload
                   </button>
