@@ -42,8 +42,7 @@ export function ConnectForm({
   const [showSaveProfile, setShowSaveProfile] = useState(false);
   const [profileName, setProfileName] = useState('');
   const [importMessage, setImportMessage] = useState<string | null>(null);
-  const [hasImportedConfig, setHasImportedConfig] = useState(false);
-  const importModeRef = useRef<'import' | 'reload'>('import');
+  const [sshConfigFile, setSshConfigFile] = useState<File | null>(null);
   const [loadedProfileId, setLoadedProfileId] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const navMenuRef = useRef<HTMLDivElement>(null);
@@ -65,13 +64,12 @@ export function ConnectForm({
   const jumpKeyFileRefs = useRef<(HTMLInputElement | null)[]>([]);
 
   function handleImportClick() {
-    importModeRef.current = 'import';
     fileInputRef.current?.click();
   }
 
-  function handleReloadClick() {
-    importModeRef.current = 'reload';
-    fileInputRef.current?.click();
+  async function handleReloadClick() {
+    if (!sshConfigFile) return;
+    await processConfigFile(sshConfigFile, true);
   }
 
   async function processConfigFile(file: File, upsert: boolean) {
@@ -95,9 +93,8 @@ export function ConnectForm({
   function handleFileChange(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
     if (!file) return;
-    const upsert = importModeRef.current === 'reload';
-    processConfigFile(file, upsert);
-    setHasImportedConfig(true);
+    setSshConfigFile(file);
+    processConfigFile(file, false);
     e.target.value = '';
   }
 
@@ -794,6 +791,15 @@ export function ConnectForm({
                 </button>
                 <button
                   type="button"
+                  className="cf-reload-btn"
+                  onClick={handleReloadClick}
+                  disabled={isLoading || !sshConfigFile}
+                  title={sshConfigFile ? `Reload: ${sshConfigFile.name}` : 'Import a config file first'}
+                >
+                  ↻ Reload
+                </button>
+                <button
+                  type="button"
                   className="cf-import-btn"
                   onClick={handleImportClick}
                   disabled={isLoading}
@@ -801,17 +807,6 @@ export function ConnectForm({
                 >
                   Import ~/.ssh/config
                 </button>
-                {hasImportedConfig && (
-                  <button
-                    type="button"
-                    className="cf-reload-btn"
-                    onClick={handleReloadClick}
-                    disabled={isLoading}
-                    title="Reload ~/.ssh/config (re-pick file)"
-                  >
-                    ↻ Reload
-                  </button>
-                )}
               </div>
             </div>
             {showSaveProfile && (
