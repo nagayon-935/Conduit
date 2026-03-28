@@ -152,18 +152,7 @@ git clone https://github.com/nagayon-935/Conduit.git
 cd Conduit
 ```
 
-### 2. フロントエンドをビルド
-
-```bash
-cd frontend
-npm install
-npm run build
-cd ..
-```
-
-ビルド成果物が `frontend/dist/` に生成されます。
-
-### 3. 自己署名 TLS 証明書を生成
+### 2. 自己署名 TLS 証明書を生成
 
 ```bash
 bash scripts/gen-self-signed-cert.sh
@@ -286,8 +275,7 @@ git pull
 docker compose -f docker-compose.vault.yml pull
 docker compose -f docker-compose.vault.yml up -d
 
-# VM①（Conduit）
-cd frontend && npm install && npm run build && cd ..
+# VM①（Conduit）— フロントのビルドも Docker 内で完結
 docker compose -f docker-compose.prod.yml up -d --build
 ```
 
