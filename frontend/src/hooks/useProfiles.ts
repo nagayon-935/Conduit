@@ -34,6 +34,7 @@ interface KeyParams {
 interface ImportEntry {
   name: string; host: string; port: number; user: string;
   authType?: AuthType;
+  identityFile?: string;
   jumpHost?: string; jumpPort?: number; jumpUser?: string;
 }
 
@@ -115,13 +116,22 @@ export function useProfiles(): UseProfilesReturn {
               const incoming = entries.find((e) => `${e.name}|${e.host}` === `${p.name}|${p.host}`);
               if (!incoming) return p;
               updated++;
+              // IdentityFile がある場合は pubkey を優先; 保存済み鍵内容は引き継ぐ
+              const resolvedAuthType = incoming.identityFile
+                ? 'pubkey'
+                : (incoming.authType ?? (p.authType !== 'vault' ? p.authType : 'vault'));
+              const keyBasename = incoming.identityFile
+                ? (incoming.identityFile.split('/').pop()?.split('\\').pop() ?? incoming.identityFile)
+                : undefined;
               // 接続情報を更新しつつ保存済みの鍵内容は引き継ぐ
               return {
                 ...p,
                 host: incoming.host,
                 port: incoming.port,
                 user: incoming.user,
-                authType: incoming.authType ?? (p.authType !== 'vault' ? p.authType : 'vault'),
+                authType: resolvedAuthType,
+                // 鍵内容が未保存かつ IdentityFile 情報があればファイル名だけ更新
+                ...(keyBasename && !p.privateKeyContent ? { privateKeyName: keyBasename } : {}),
                 ...(incoming.jumpHost ? { jumpHost: incoming.jumpHost, jumpPort: incoming.jumpPort, jumpUser: incoming.jumpUser } : {}),
               };
             })
@@ -129,14 +139,19 @@ export function useProfiles(): UseProfilesReturn {
         entries
           .filter((e) => !existingMap.has(`${e.name}|${e.host}`))
           .forEach((e) => {
+            const resolvedAuthType: AuthType = e.identityFile ? 'pubkey' : (e.authType ?? 'vault');
+            const keyBasename = e.identityFile
+              ? (e.identityFile.split('/').pop()?.split('\\').pop() ?? e.identityFile)
+              : undefined;
             next.unshift({
               id: generateId(),
               name: e.name,
               host: e.host,
               port: e.port,
               user: e.user,
-              authType: e.authType ?? 'vault',
+              authType: resolvedAuthType,
               createdAt: new Date().toISOString(),
+              ...(keyBasename ? { privateKeyName: keyBasename } : {}),
               ...(e.jumpHost ? { jumpHost: e.jumpHost, jumpPort: e.jumpPort, jumpUser: e.jumpUser } : {}),
             });
             added++;
