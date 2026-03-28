@@ -174,6 +174,7 @@ export function TabBar({
           </button>
         ))}
       </div>
+
     </div>
   );
 }

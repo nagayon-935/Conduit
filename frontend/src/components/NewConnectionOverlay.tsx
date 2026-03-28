@@ -21,7 +21,7 @@ export function NewConnectionOverlay({
   const [error, setError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const keyFileRef = useRef<HTMLInputElement>(null);
-
+  const jumpKeyFileRef = useRef<HTMLInputElement>(null);
   // Close on Escape key
   useEffect(() => {
     function handleKeyDown(e: KeyboardEvent) {
@@ -44,13 +44,31 @@ export function NewConnectionOverlay({
     if (error) setError(null);
   }
 
-  function handleKeyFileChange(e: React.ChangeEvent<HTMLInputElement>) {
+  function handleJumpKeyFileChange(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
     if (!file) return;
+    const fileName = file.name;
     const reader = new FileReader();
     reader.onload = (ev) => {
       const text = (ev.target?.result as string) ?? '';
-      setFields((prev) => ({ ...prev, privateKey: text }));
+      setFields((prev) => ({ ...prev, jumpPrivateKey: text, jumpPrivateKeyName: fileName }));
+    };
+    reader.readAsText(file);
+    e.target.value = '';
+  }
+
+  function clearJumpFields() {
+    setFields((prev) => ({ ...prev, jumpHost: '', jumpPort: '22', jumpUser: '', jumpAuthType: 'vault', jumpPassword: '', jumpPrivateKey: '', jumpPrivateKeyName: '' }));
+  }
+
+  function handleKeyFileChange(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const fileName = file.name;
+    const reader = new FileReader();
+    reader.onload = (ev) => {
+      const text = (ev.target?.result as string) ?? '';
+      setFields((prev) => ({ ...prev, privateKey: text, privateKeyName: fileName }));
     };
     reader.readAsText(file);
     e.target.value = '';
@@ -78,13 +96,22 @@ export function NewConnectionOverlay({
 
   function fillFromHistory(entry: HistoryEntry) {
     if (isLoading) return;
-    setFields({ host: entry.host, port: String(entry.port), user: entry.user, authType: entry.authType ?? 'vault', password: '', privateKey: '' });
+    setFields({ host: entry.host, port: String(entry.port), user: entry.user, authType: entry.authType ?? 'vault', password: '', privateKey: '', privateKeyName: '', jumpHost: '', jumpPort: '22', jumpUser: '', jumpAuthType: 'vault', jumpPassword: '', jumpPrivateKey: '', jumpPrivateKeyName: '' });
     if (error) setError(null);
   }
 
   function fillFromProfile(profile: Profile) {
     if (isLoading) return;
-    setFields({ host: profile.host, port: String(profile.port), user: profile.user, authType: profile.authType ?? 'vault', password: '', privateKey: '' });
+    setFields({
+      host: profile.host, port: String(profile.port), user: profile.user,
+      authType: profile.authType ?? 'vault',
+      password: '', privateKey: '', privateKeyName: '',
+      jumpHost: profile.jumpHost ?? '',
+      jumpPort: profile.jumpPort ? String(profile.jumpPort) : '22',
+      jumpUser: profile.jumpUser ?? '',
+      jumpAuthType: profile.jumpAuthType ?? 'vault',
+      jumpPassword: '', jumpPrivateKey: '', jumpPrivateKeyName: '',
+    });
     if (error) setError(null);
   }
 
@@ -187,31 +214,148 @@ export function NewConnectionOverlay({
 
           {fields.authType === 'pubkey' && (
             <div className="nco-field">
-              <label>Private Key (PEM)</label>
-              <textarea
-                className="nco-key-textarea"
-                placeholder="-----BEGIN OPENSSH PRIVATE KEY-----&#10;..."
-                value={fields.privateKey}
-                onChange={(e) => setFields((prev) => ({ ...prev, privateKey: e.target.value }))}
-                disabled={isLoading}
-              />
-              <input
-                ref={keyFileRef}
-                type="file"
-                accept=".pem,.key"
-                style={{ display: 'none' }}
-                onChange={handleKeyFileChange}
-              />
-              <button
-                type="button"
-                className="nco-key-upload-btn"
-                onClick={() => keyFileRef.current?.click()}
-                disabled={isLoading}
-              >
-                Upload .pem / .key file
-              </button>
+              <label>Private Key</label>
+              <div className="nco-key-picker-row">
+                <input
+                  ref={keyFileRef}
+                  type="file"
+                  style={{ display: 'none' }}
+                  onChange={handleKeyFileChange}
+                />
+                <button
+                  type="button"
+                  className="nco-key-upload-btn"
+                  onClick={() => keyFileRef.current?.click()}
+                  disabled={isLoading}
+                >
+                  Choose key file…
+                </button>
+                {fields.privateKeyName ? (
+                  <span className="nco-key-filename" title={fields.privateKeyName}>
+                    {fields.privateKeyName}
+                  </span>
+                ) : (
+                  <span className="nco-key-placeholder">No file selected</span>
+                )}
+              </div>
             </div>
           )}
+
+          {/* ProxyJump — always inline */}
+          <div className="nco-jump-inline">
+            <div className="nco-field">
+              <label htmlFor="nco-jump-host">
+                Jump Host <span className="nco-jump-optional">(ProxyJump — optional)</span>
+              </label>
+              <div className="nco-jump-host-row">
+                <input
+                  id="nco-jump-host"
+                  type="text"
+                  placeholder="jumphost.example.com"
+                  value={fields.jumpHost}
+                  onChange={(e) => setFields((prev) => ({ ...prev, jumpHost: e.target.value }))}
+                  disabled={isLoading}
+                  autoComplete="off"
+                />
+                {fields.jumpHost.trim() && (
+                  <button
+                    type="button"
+                    className="nco-jump-clear-btn"
+                    onClick={clearJumpFields}
+                    disabled={isLoading}
+                    title="Clear ProxyJump"
+                  >✕</button>
+                )}
+              </div>
+            </div>
+
+            {fields.jumpHost.trim() && (
+              <div className="nco-jump-expanded">
+                <div className="nco-row">
+                  <div className="nco-field nco-field--port">
+                    <label htmlFor="nco-jump-port">Port</label>
+                    <input
+                      id="nco-jump-port"
+                      type="number"
+                      placeholder="22"
+                      value={fields.jumpPort}
+                      onChange={(e) => setFields((prev) => ({ ...prev, jumpPort: e.target.value }))}
+                      disabled={isLoading}
+                      min={1} max={65535}
+                    />
+                  </div>
+                  <div className="nco-field">
+                    <label htmlFor="nco-jump-user">User</label>
+                    <input
+                      id="nco-jump-user"
+                      type="text"
+                      placeholder="ubuntu"
+                      value={fields.jumpUser}
+                      onChange={(e) => setFields((prev) => ({ ...prev, jumpUser: e.target.value }))}
+                      disabled={isLoading}
+                      autoComplete="username"
+                    />
+                  </div>
+                </div>
+
+                <div className="nco-auth-tabs">
+                  {(['vault', 'password', 'pubkey'] as AuthType[]).map((at) => (
+                    <button
+                      key={at}
+                      type="button"
+                      className={`nco-auth-tab${fields.jumpAuthType === at ? ' active' : ''}`}
+                      onClick={() => setFields((prev) => ({ ...prev, jumpAuthType: at }))}
+                      disabled={isLoading}
+                    >
+                      {at === 'vault' ? 'Vault' : at === 'password' ? 'Password' : 'Public Key'}
+                    </button>
+                  ))}
+                </div>
+
+                {fields.jumpAuthType === 'password' && (
+                  <div className="nco-field">
+                    <label htmlFor="nco-jump-password">Password</label>
+                    <input
+                      id="nco-jump-password"
+                      type="password"
+                      placeholder="••••••••"
+                      value={fields.jumpPassword}
+                      onChange={(e) => setFields((prev) => ({ ...prev, jumpPassword: e.target.value }))}
+                      disabled={isLoading}
+                      autoComplete="current-password"
+                    />
+                  </div>
+                )}
+
+                {fields.jumpAuthType === 'pubkey' && (
+                  <div className="nco-field">
+                    <label>Private Key</label>
+                    <div className="nco-key-picker-row">
+                      <input
+                        ref={jumpKeyFileRef}
+                        type="file"
+                        style={{ display: 'none' }}
+                        onChange={handleJumpKeyFileChange}
+                      />
+                      <button
+                        type="button"
+                        className="nco-key-upload-btn"
+                        onClick={() => jumpKeyFileRef.current?.click()}
+                        disabled={isLoading}
+                      >
+                        Choose key file…
+                      </button>
+                      {fields.jumpPrivateKeyName ? (
+                        <span className="nco-key-filename" title={fields.jumpPrivateKeyName}>{fields.jumpPrivateKeyName}</span>
+                      ) : (
+                        <span className="nco-key-placeholder">No file selected</span>
+                      )}
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
 
           <button type="submit" className="nco-submit-btn" disabled={isLoading}>
             {isLoading ? (

@@ -17,18 +17,25 @@ function generateId(): string {
   return `${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
 }
 
+interface JumpParams {
+  jumpHost?: string;
+  jumpPort?: number;
+  jumpUser?: string;
+  jumpAuthType?: AuthType;
+}
+
 interface UseProfilesReturn {
   profiles: Profile[];
-  saveProfile: (name: string, host: string, port: number, user: string, authType: AuthType) => void;
+  saveProfile: (name: string, host: string, port: number, user: string, authType: AuthType, jump?: JumpParams) => void;
   deleteProfile: (id: string) => void;
   loadProfile: (id: string) => Profile | undefined;
-  importProfiles: (entries: { name: string; host: string; port: number; user: string; authType?: AuthType }[]) => number;
+  importProfiles: (entries: { name: string; host: string; port: number; user: string; authType?: AuthType; jumpHost?: string; jumpPort?: number; jumpUser?: string }[]) => number;
 }
 
 export function useProfiles(): UseProfilesReturn {
   const [profiles, setProfiles] = useState<Profile[]>(loadFromStorage);
 
-  const saveProfile = useCallback((name: string, host: string, port: number, user: string, authType: AuthType) => {
+  const saveProfile = useCallback((name: string, host: string, port: number, user: string, authType: AuthType, jump?: JumpParams) => {
     const newProfile: Profile = {
       id: generateId(),
       name,
@@ -37,6 +44,12 @@ export function useProfiles(): UseProfilesReturn {
       user,
       authType,
       createdAt: new Date().toISOString(),
+      ...(jump?.jumpHost ? {
+        jumpHost: jump.jumpHost,
+        jumpPort: jump.jumpPort,
+        jumpUser: jump.jumpUser,
+        jumpAuthType: jump.jumpAuthType,
+      } : {}),
     };
     setProfiles((prev) => {
       const updated = [newProfile, ...prev].slice(0, MAX_PROFILES);
@@ -60,7 +73,7 @@ export function useProfiles(): UseProfilesReturn {
 
   // 既存プロフィールと name+host が重複しないものだけを追加し、追加件数を返す
   const importProfiles = useCallback(
-    (entries: { name: string; host: string; port: number; user: string; authType?: AuthType }[]): number => {
+    (entries: { name: string; host: string; port: number; user: string; authType?: AuthType; jumpHost?: string; jumpPort?: number; jumpUser?: string }[]): number => {
       let added = 0;
       setProfiles((prev) => {
         const existingKeys = new Set(prev.map((p) => `${p.name}|${p.host}`));
@@ -74,6 +87,7 @@ export function useProfiles(): UseProfilesReturn {
             user: e.user,
             authType: e.authType ?? 'vault',
             createdAt: new Date().toISOString(),
+            ...(e.jumpHost ? { jumpHost: e.jumpHost, jumpPort: e.jumpPort, jumpUser: e.jumpUser } : {}),
           }));
         added = newProfiles.length;
         const updated = [...newProfiles, ...prev].slice(0, MAX_PROFILES);

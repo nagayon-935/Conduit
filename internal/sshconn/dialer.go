@@ -12,11 +12,11 @@ import (
 )
 
 const (
-	dialTimeout     = 15 * time.Second
-	defaultPTYRows  = 24
-	defaultPTYCols  = 80
-	termBaudRate    = 14400
-	termType        = "xterm-256color"
+	dialTimeout    = 15 * time.Second
+	defaultPTYRows = 24
+	defaultPTYCols = 80
+	termBaudRate   = 14400
+	termType       = "xterm-256color"
 )
 
 // ConnectRequest carries all parameters needed to establish an SSH session.
@@ -32,6 +32,16 @@ type ConnectRequest struct {
 	Password string
 	// pubkey (user-provided)
 	UserPrivateKey []byte
+
+	// ProxyJump (optional — zero JumpHost means no jump)
+	JumpHost           string
+	JumpPort           int
+	JumpUser           string
+	JumpAuthType       string // "vault" | "password" | "pubkey"
+	JumpPrivateKey     []byte
+	JumpCertificate    []byte
+	JumpPassword       string
+	JumpUserPrivateKey []byte
 }
 
 // SSHDialer is the interface for dialing SSH connections.
@@ -49,57 +59,139 @@ func NewDialer() *Dialer {
 	return &Dialer{}
 }
 
-// Dial connects to the SSH server described in req, requests a PTY, and starts a shell.
-func (d *Dialer) Dial(ctx context.Context, req ConnectRequest) (*ssh.Client, *ssh.Session, io.WriteCloser, io.Reader, error) {
-	var authMethods []ssh.AuthMethod
+// connWithCloser wraps a net.Conn and closes an additional io.Closer on Close.
+// Used to ensure the ProxyJump client is cleaned up when the tunneled connection closes.
+type connWithCloser struct {
+	net.Conn
+	extra io.Closer
+}
 
-	switch req.AuthType {
+func (c *connWithCloser) Close() error {
+	err1 := c.Conn.Close()
+	err2 := c.extra.Close()
+	if err1 != nil {
+		return err1
+	}
+	return err2
+}
+
+// buildAuthMethods returns the appropriate ssh.AuthMethod slice for the given auth parameters.
+func buildAuthMethods(authType, password string, privateKey, certificate, userPrivateKey []byte) ([]ssh.AuthMethod, error) {
+	switch authType {
 	case "password":
-		authMethods = []ssh.AuthMethod{ssh.Password(req.Password)}
+		return []ssh.AuthMethod{ssh.Password(password)}, nil
 	case "pubkey":
-		signer, err := ssh.ParsePrivateKey(req.UserPrivateKey)
+		signer, err := ssh.ParsePrivateKey(userPrivateKey)
 		if err != nil {
-			return nil, nil, nil, nil, fmt.Errorf("sshconn: parse user private key: %w", err)
+			return nil, fmt.Errorf("parse user private key: %w", err)
 		}
-		authMethods = []ssh.AuthMethod{ssh.PublicKeys(signer)}
+		return []ssh.AuthMethod{ssh.PublicKeys(signer)}, nil
 	default: // "vault" or ""
-		signer, err := buildCertSigner(req.PrivateKey, req.Certificate)
+		signer, err := buildCertSigner(privateKey, certificate)
 		if err != nil {
-			return nil, nil, nil, nil, fmt.Errorf("sshconn: build cert signer: %w", err)
+			return nil, err
 		}
-		authMethods = []ssh.AuthMethod{ssh.PublicKeys(signer)}
+		return []ssh.AuthMethod{ssh.PublicKeys(signer)}, nil
+	}
+}
+
+// Dial connects to the SSH server described in req, optionally via a ProxyJump host,
+// requests a PTY, and starts a shell.
+func (d *Dialer) Dial(ctx context.Context, req ConnectRequest) (*ssh.Client, *ssh.Session, io.WriteCloser, io.Reader, error) {
+	authMethods, err := buildAuthMethods(req.AuthType, req.Password, req.PrivateKey, req.Certificate, req.UserPrivateKey)
+	if err != nil {
+		return nil, nil, nil, nil, fmt.Errorf("sshconn: build auth methods: %w", err)
 	}
 
+	targetAddr := net.JoinHostPort(req.Host, fmt.Sprintf("%d", req.Port))
+
 	sshCfg := &ssh.ClientConfig{
-		User: req.User,
-		Auth: authMethods,
-		// In a production environment this should be replaced with a proper host key callback.
+		User:            req.User,
+		Auth:            authMethods,
 		HostKeyCallback: ssh.InsecureIgnoreHostKey(), //nolint:gosec
 		Timeout:         dialTimeout,
 	}
 
-	addr := net.JoinHostPort(req.Host, fmt.Sprintf("%d", req.Port))
-
-	// Honour context deadline / cancellation for the dial phase.
-	type dialResult struct {
-		client *ssh.Client
-		err    error
-	}
-	ch := make(chan dialResult, 1)
-	go func() {
-		client, err := ssh.Dial("tcp", addr, sshCfg)
-		ch <- dialResult{client, err}
-	}()
-
 	var client *ssh.Client
-	select {
-	case <-ctx.Done():
-		return nil, nil, nil, nil, fmt.Errorf("sshconn: context cancelled while dialing: %w", ctx.Err())
-	case res := <-ch:
-		if res.err != nil {
-			return nil, nil, nil, nil, fmt.Errorf("sshconn: dial %s: %w", addr, res.err)
+
+	if req.JumpHost != "" {
+		// ── ProxyJump path ──────────────────────────────────────────────
+		jumpAuthMethods, err := buildAuthMethods(
+			req.JumpAuthType, req.JumpPassword,
+			req.JumpPrivateKey, req.JumpCertificate, req.JumpUserPrivateKey,
+		)
+		if err != nil {
+			return nil, nil, nil, nil, fmt.Errorf("sshconn: build jump auth methods: %w", err)
 		}
-		client = res.client
+
+		jumpAddr := net.JoinHostPort(req.JumpHost, fmt.Sprintf("%d", req.JumpPort))
+		jumpCfg := &ssh.ClientConfig{
+			User:            req.JumpUser,
+			Auth:            jumpAuthMethods,
+			HostKeyCallback: ssh.InsecureIgnoreHostKey(), //nolint:gosec
+			Timeout:         dialTimeout,
+		}
+
+		type jumpResult struct {
+			client *ssh.Client
+			err    error
+		}
+		jumpCh := make(chan jumpResult, 1)
+		go func() {
+			jc, err := ssh.Dial("tcp", jumpAddr, jumpCfg)
+			jumpCh <- jumpResult{jc, err}
+		}()
+
+		var jumpClient *ssh.Client
+		select {
+		case <-ctx.Done():
+			return nil, nil, nil, nil, fmt.Errorf("sshconn: context cancelled while dialing jump host: %w", ctx.Err())
+		case res := <-jumpCh:
+			if res.err != nil {
+				return nil, nil, nil, nil, fmt.Errorf("sshconn: dial jump host %s: %w", jumpAddr, res.err)
+			}
+			jumpClient = res.client
+		}
+
+		// Open a TCP tunnel to the target host through the jump host.
+		tunnel, err := jumpClient.Dial("tcp", targetAddr)
+		if err != nil {
+			jumpClient.Close()
+			return nil, nil, nil, nil, fmt.Errorf("sshconn: tunnel to %s via jump: %w", targetAddr, err)
+		}
+
+		// Wrap so that closing the tunnel also closes the jump client.
+		wrapped := &connWithCloser{Conn: tunnel, extra: jumpClient}
+
+		// Perform the SSH handshake with the target over the tunnel.
+		ncc, chans, reqs, err := ssh.NewClientConn(wrapped, targetAddr, sshCfg)
+		if err != nil {
+			wrapped.Close()
+			return nil, nil, nil, nil, fmt.Errorf("sshconn: ssh handshake with %s via jump: %w", targetAddr, err)
+		}
+
+		client = ssh.NewClient(ncc, chans, reqs)
+	} else {
+		// ── Direct dial path ─────────────────────────────────────────────
+		type dialResult struct {
+			client *ssh.Client
+			err    error
+		}
+		ch := make(chan dialResult, 1)
+		go func() {
+			c, err := ssh.Dial("tcp", targetAddr, sshCfg)
+			ch <- dialResult{c, err}
+		}()
+
+		select {
+		case <-ctx.Done():
+			return nil, nil, nil, nil, fmt.Errorf("sshconn: context cancelled while dialing: %w", ctx.Err())
+		case res := <-ch:
+			if res.err != nil {
+				return nil, nil, nil, nil, fmt.Errorf("sshconn: dial %s: %w", targetAddr, res.err)
+			}
+			client = res.client
+		}
 	}
 
 	sess, err := client.NewSession()

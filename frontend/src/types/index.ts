@@ -7,6 +7,13 @@ export interface ConnectRequest {
   auth_type: AuthType;
   password?: string;
   private_key?: string;
+  // ProxyJump (omit or set jump_host='' to disable)
+  jump_host?: string;
+  jump_port?: number;
+  jump_user?: string;
+  jump_auth_type?: AuthType;
+  jump_password?: string;
+  jump_private_key?: string;
 }
 
 export interface ConnectResponse {
@@ -43,6 +50,10 @@ export interface Profile {
   user: string;
   authType: AuthType;
   createdAt: string;
+  jumpHost?: string;
+  jumpPort?: number;
+  jumpUser?: string;
+  jumpAuthType?: AuthType;
 }
 
 export interface HistoryEntry {

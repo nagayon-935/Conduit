@@ -1,4 +1,4 @@
-import { useState, useRef, type FormEvent } from 'react';
+import { useState, useRef, useEffect, type FormEvent } from 'react';
 import { connectToHost } from '../api/connect';
 import type { AppState, AuthType, HistoryEntry } from '../types';
 import { useProfiles } from '../hooks/useProfiles';
@@ -13,6 +13,7 @@ interface ConnectFormProps {
   history?: HistoryEntry[];
   onShowSessions?: () => void;
   onShowLogs?: () => void;
+  sessionCount?: number;
 }
 
 const FEATURES = [
@@ -30,6 +31,7 @@ export function ConnectForm({
   history = [],
   onShowSessions,
   onShowLogs,
+  sessionCount,
 }: ConnectFormProps) {
   const [fields, setFields] = useState<FormFields>(defaultFields);
   const [extraEntries, setExtraEntries] = useState<FormFields[]>([]);
@@ -41,8 +43,23 @@ export function ConnectForm({
   const [profileName, setProfileName] = useState('');
   const [importMessage, setImportMessage] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const navMenuRef = useRef<HTMLDivElement>(null);
+  const [navMenuOpen, setNavMenuOpen] = useState(false);
+
+  useEffect(() => {
+    if (!navMenuOpen) return;
+    function onOutside(e: MouseEvent) {
+      if (navMenuRef.current && !navMenuRef.current.contains(e.target as Node)) {
+        setNavMenuOpen(false);
+      }
+    }
+    document.addEventListener('mousedown', onOutside);
+    return () => document.removeEventListener('mousedown', onOutside);
+  }, [navMenuOpen]);
   // Per-entry key file input refs (main + extras)
   const keyFileRefs = useRef<(HTMLInputElement | null)[]>([]);
+  // Per-entry jump key file input refs (main + extras)
+  const jumpKeyFileRefs = useRef<(HTMLInputElement | null)[]>([]);
 
   function handleImportClick() {
     fileInputRef.current?.click();
@@ -73,7 +90,7 @@ export function ConnectForm({
   }
 
   function handleHistoryClick(entry: HistoryEntry) {
-    setFields({ host: entry.host, port: String(entry.port), user: entry.user, authType: entry.authType ?? 'vault', password: '', privateKey: '' });
+    setFields({ host: entry.host, port: String(entry.port), user: entry.user, authType: entry.authType ?? 'vault', password: '', privateKey: '', privateKeyName: '', jumpHost: '', jumpPort: '22', jumpUser: '', jumpAuthType: 'vault', jumpPassword: '', jumpPrivateKey: '', jumpPrivateKeyName: '' });
     if (error) setError(null);
   }
 
@@ -101,17 +118,48 @@ export function ConnectForm({
   function handleKeyFileChange(entryIndex: number | 'main', e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
     if (!file) return;
+    const fileName = file.name;
     const reader = new FileReader();
     reader.onload = (ev) => {
       const text = (ev.target?.result as string) ?? '';
       if (entryIndex === 'main') {
-        setFields((prev) => ({ ...prev, privateKey: text }));
+        setFields((prev) => ({ ...prev, privateKey: text, privateKeyName: fileName }));
       } else {
-        setExtraEntries((prev) => prev.map((entry, i) => i === entryIndex ? { ...entry, privateKey: text } : entry));
+        setExtraEntries((prev) => prev.map((entry, i) =>
+          i === entryIndex ? { ...entry, privateKey: text, privateKeyName: fileName } : entry
+        ));
       }
     };
     reader.readAsText(file);
     e.target.value = '';
+  }
+
+  function handleJumpKeyFileChange(entryIndex: number | 'main', e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const fileName = file.name;
+    const reader = new FileReader();
+    reader.onload = (ev) => {
+      const text = (ev.target?.result as string) ?? '';
+      if (entryIndex === 'main') {
+        setFields((prev) => ({ ...prev, jumpPrivateKey: text, jumpPrivateKeyName: fileName }));
+      } else {
+        setExtraEntries((prev) => prev.map((entry, i) =>
+          i === entryIndex ? { ...entry, jumpPrivateKey: text, jumpPrivateKeyName: fileName } : entry
+        ));
+      }
+    };
+    reader.readAsText(file);
+    e.target.value = '';
+  }
+
+  function clearJumpFields(entryIndex: number | 'main') {
+    const cleared = { jumpHost: '', jumpPort: '22', jumpUser: '', jumpAuthType: 'vault' as const, jumpPassword: '', jumpPrivateKey: '', jumpPrivateKeyName: '' };
+    if (entryIndex === 'main') {
+      setFields((prev) => ({ ...prev, ...cleared }));
+    } else {
+      setExtraEntries((prev) => prev.map((entry, i) => i === entryIndex ? { ...entry, ...cleared } : entry));
+    }
   }
 
   function addExtraEntry() {
@@ -188,7 +236,13 @@ export function ConnectForm({
     const validationError = validateForm(fields);
     if (validationError) { setError(validationError); return; }
     const name = profileName.trim() || `${fields.user}@${fields.host}`;
-    saveProfile(name, fields.host.trim(), parseInt(fields.port, 10), fields.user.trim(), fields.authType);
+    const jh = fields.jumpHost.trim();
+    saveProfile(name, fields.host.trim(), parseInt(fields.port, 10), fields.user.trim(), fields.authType, jh ? {
+      jumpHost: jh,
+      jumpPort: parseInt(fields.jumpPort, 10),
+      jumpUser: fields.jumpUser.trim() || undefined,
+      jumpAuthType: fields.jumpAuthType,
+    } : undefined);
     setProfileName('');
     setShowSaveProfile(false);
   }
@@ -196,7 +250,15 @@ export function ConnectForm({
   function handleLoadProfile(id: string) {
     const p = profiles.find((x) => x.id === id);
     if (p) {
-      setFields({ host: p.host, port: String(p.port), user: p.user, authType: p.authType ?? 'vault', password: '', privateKey: '' });
+      setFields({
+        host: p.host, port: String(p.port), user: p.user, authType: p.authType ?? 'vault',
+        password: '', privateKey: '', privateKeyName: '',
+        jumpHost: p.jumpHost ?? '',
+        jumpPort: p.jumpPort ? String(p.jumpPort) : '22',
+        jumpUser: p.jumpUser ?? '',
+        jumpAuthType: p.jumpAuthType ?? 'vault',
+        jumpPassword: '', jumpPrivateKey: '', jumpPrivateKeyName: '',
+      });
       if (error) setError(null);
     }
   }
@@ -206,7 +268,15 @@ export function ConnectForm({
     if (p) {
       setExtraEntries((prev) =>
         prev.map((entry, i) =>
-          i === index ? { host: p.host, port: String(p.port), user: p.user, authType: p.authType ?? 'vault', password: '', privateKey: '' } : entry
+          i === index ? {
+            host: p.host, port: String(p.port), user: p.user, authType: p.authType ?? 'vault',
+            password: '', privateKey: '', privateKeyName: '',
+            jumpHost: p.jumpHost ?? '',
+            jumpPort: p.jumpPort ? String(p.jumpPort) : '22',
+            jumpUser: p.jumpUser ?? '',
+            jumpAuthType: p.jumpAuthType ?? 'vault',
+            jumpPassword: '', jumpPrivateKey: '', jumpPrivateKeyName: '',
+          } : entry
         )
       );
       if (error) setError(null);
@@ -216,7 +286,7 @@ export function ConnectForm({
   function handleExtraLoadHistory(index: number, h: HistoryEntry) {
     setExtraEntries((prev) =>
       prev.map((entry, i) =>
-        i === index ? { host: h.host, port: String(h.port), user: h.user, authType: h.authType ?? 'vault', password: '', privateKey: '' } : entry
+        i === index ? { host: h.host, port: String(h.port), user: h.user, authType: h.authType ?? 'vault', password: '', privateKey: '', privateKeyName: '', jumpHost: '', jumpPort: '22', jumpUser: '', jumpAuthType: 'vault', jumpPassword: '', jumpPrivateKey: '', jumpPrivateKeyName: '' } : entry
       )
     );
     if (error) setError(null);
@@ -235,7 +305,7 @@ export function ConnectForm({
     return (
       <>
         <div className="cf-auth-tabs">
-          {(['vault', 'password', 'pubkey'] as AuthType[]).map((at) => (
+          {(['vault', 'pubkey', 'password'] as AuthType[]).map((at) => (
             <button
               key={at}
               type="button"
@@ -255,7 +325,6 @@ export function ConnectForm({
               id={`${idPrefix}-password`}
               name="password"
               type="password"
-              placeholder="••••••••"
               value={entry.password}
               onChange={(e) => onFieldChange('password', e.target.value)}
               disabled={disabled}
@@ -266,57 +335,221 @@ export function ConnectForm({
 
         {entry.authType === 'pubkey' && (
           <div className="cf-field">
-            <label>Private Key (PEM)</label>
-            <textarea
-              className="cf-key-textarea"
-              placeholder="-----BEGIN OPENSSH PRIVATE KEY-----&#10;..."
-              value={entry.privateKey}
-              onChange={(e) => onFieldChange('privateKey', e.target.value)}
-              disabled={disabled}
-            />
-            <input
-              ref={(el) => {
-                if (keyFileIndex === 'main') {
-                  keyFileRefs.current[0] = el;
-                } else {
-                  keyFileRefs.current[keyFileIndex + 1] = el;
-                }
-              }}
-              type="file"
-              accept=".pem,.key"
-              style={{ display: 'none' }}
-              onChange={(e) => handleKeyFileChange(keyFileIndex, e)}
-            />
-            <button
-              type="button"
-              className="cf-key-upload-btn"
-              onClick={() => {
-                const idx = keyFileIndex === 'main' ? 0 : (keyFileIndex as number) + 1;
-                keyFileRefs.current[idx]?.click();
-              }}
-              disabled={disabled}
-            >
-              Upload .pem / .key file
-            </button>
+            <label>Private Key</label>
+            <div className="cf-key-picker-row">
+              <input
+                ref={(el) => {
+                  if (keyFileIndex === 'main') {
+                    keyFileRefs.current[0] = el;
+                  } else {
+                    keyFileRefs.current[(keyFileIndex as number) + 1] = el;
+                  }
+                }}
+                type="file"
+                style={{ display: 'none' }}
+                onChange={(e) => handleKeyFileChange(keyFileIndex, e)}
+              />
+              <button
+                type="button"
+                className="cf-key-upload-btn"
+                onClick={() => {
+                  const idx = keyFileIndex === 'main' ? 0 : (keyFileIndex as number) + 1;
+                  keyFileRefs.current[idx]?.click();
+                }}
+                disabled={disabled}
+              >
+                Choose key file…
+              </button>
+              {entry.privateKeyName ? (
+                <span className="cf-key-filename" title={entry.privateKeyName}>
+                  {entry.privateKeyName}
+                </span>
+              ) : (
+                <span className="cf-key-placeholder">No file selected</span>
+              )}
+            </div>
           </div>
         )}
       </>
     );
   }
 
+  function renderJumpSection(
+    entry: FormFields,
+    onFieldChange: (field: keyof FormFields, value: string) => void,
+    keyFileIndex: number | 'main',
+    disabled: boolean,
+    idPrefix: string,
+  ) {
+    const jkIdx = keyFileIndex === 'main' ? 0 : (keyFileIndex as number) + 1;
+    const hasJump = entry.jumpHost.trim() !== '';
+    return (
+      <div className="cf-jump-inline">
+        <div className="cf-field">
+          <label htmlFor={`${idPrefix}-jump-host`}>
+            Jump Host <span className="cf-jump-optional">(ProxyJump — optional)</span>
+          </label>
+          <div className="cf-jump-host-row">
+            <input
+              id={`${idPrefix}-jump-host`}
+              type="text"
+              placeholder="jumphost.example.com"
+              value={entry.jumpHost}
+              onChange={(e) => onFieldChange('jumpHost', e.target.value)}
+              disabled={disabled}
+              autoComplete="off"
+            />
+            {hasJump && (
+              <button
+                type="button"
+                className="cf-jump-clear-btn"
+                onClick={() => clearJumpFields(keyFileIndex)}
+                disabled={disabled}
+                title="Clear ProxyJump"
+              >✕</button>
+            )}
+          </div>
+        </div>
+
+        {hasJump && (
+          <div className="cf-jump-expanded">
+            <div className="cf-row">
+              <div className="cf-field cf-field--port">
+                <label htmlFor={`${idPrefix}-jump-port`}>Port</label>
+                <input
+                  id={`${idPrefix}-jump-port`}
+                  type="number"
+                  placeholder="22"
+                  value={entry.jumpPort}
+                  onChange={(e) => onFieldChange('jumpPort', e.target.value)}
+                  disabled={disabled}
+                  min={1} max={65535}
+                />
+              </div>
+              <div className="cf-field">
+                <label htmlFor={`${idPrefix}-jump-user`}>User</label>
+                <input
+                  id={`${idPrefix}-jump-user`}
+                  type="text"
+                  placeholder="ubuntu"
+                  value={entry.jumpUser}
+                  onChange={(e) => onFieldChange('jumpUser', e.target.value)}
+                  disabled={disabled}
+                  autoComplete="username"
+                />
+              </div>
+            </div>
+
+            <div className="cf-auth-tabs">
+              {(['vault', 'pubkey', 'password'] as AuthType[]).map((at) => (
+                <button
+                  key={at}
+                  type="button"
+                  className={`cf-auth-tab${entry.jumpAuthType === at ? ' active' : ''}`}
+                  onClick={() => onFieldChange('jumpAuthType', at)}
+                  disabled={disabled}
+                >
+                  {at === 'vault' ? 'Vault' : at === 'password' ? 'Password' : 'Public Key'}
+                </button>
+              ))}
+            </div>
+
+            {entry.jumpAuthType === 'password' && (
+              <div className="cf-field">
+                <label htmlFor={`${idPrefix}-jump-password`}>Password</label>
+                <input
+                  id={`${idPrefix}-jump-password`}
+                  type="password"
+                      value={entry.jumpPassword}
+                  onChange={(e) => onFieldChange('jumpPassword', e.target.value)}
+                  disabled={disabled}
+                  autoComplete="current-password"
+                />
+              </div>
+            )}
+
+            {entry.jumpAuthType === 'pubkey' && (
+              <div className="cf-field">
+                <label>Private Key</label>
+                <div className="cf-key-picker-row">
+                  <input
+                    ref={(el) => { jumpKeyFileRefs.current[jkIdx] = el; }}
+                    type="file"
+                    style={{ display: 'none' }}
+                    onChange={(e) => handleJumpKeyFileChange(keyFileIndex, e)}
+                  />
+                  <button
+                    type="button"
+                    className="cf-key-upload-btn"
+                    onClick={() => jumpKeyFileRefs.current[jkIdx]?.click()}
+                    disabled={disabled}
+                  >
+                    Choose key file…
+                  </button>
+                  {entry.jumpPrivateKeyName ? (
+                    <span className="cf-key-filename" title={entry.jumpPrivateKeyName}>{entry.jumpPrivateKeyName}</span>
+                  ) : (
+                    <span className="cf-key-placeholder">No file selected</span>
+                  )}
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+      </div>
+    );
+  }
+
   return (
     <div className="cf-page">
-      <div className="cf-container">
-        {/* Hero */}
-        <header className="cf-hero">
-          <div className="cf-logo">⛵</div>
-          <h1 className="cf-title">Conduit</h1>
-          <p className="cf-subtitle">Secure Web SSH Terminal</p>
-        </header>
+      {/* Fixed top bar: hamburger + app identity */}
+      <header className="cf-topbar">
+        <div className="cf-topbar-left" ref={navMenuRef}>
+          <button
+            className={`cf-topbar-menu-btn${navMenuOpen ? ' active' : ''}`}
+            aria-label="Menu"
+            aria-expanded={navMenuOpen}
+            onClick={() => setNavMenuOpen((v) => !v)}
+          >
+            ≡
+          </button>
+          {navMenuOpen && (onShowSessions || onShowLogs) && (
+            <div className="cf-nav-dropdown" role="menu">
+              {onShowSessions && (
+                <button
+                  className="cf-nav-item"
+                  role="menuitem"
+                  onClick={() => { setNavMenuOpen(false); onShowSessions(); }}
+                >
+                  <span>Sessions</span>
+                  {sessionCount !== undefined && (
+                    <span className="cf-nav-badge">{sessionCount}</span>
+                  )}
+                </button>
+              )}
+              {onShowLogs && (
+                <button
+                  className="cf-nav-item"
+                  role="menuitem"
+                  onClick={() => { setNavMenuOpen(false); onShowLogs(); }}
+                >
+                  Logs
+                </button>
+              )}
+            </div>
+          )}
+        </div>
+        <div className="cf-topbar-brand">
+          <span className="cf-topbar-logo">⛵</span>
+          <span className="cf-topbar-title">Conduit</span>
+          <span className="cf-topbar-subtitle">Secure Web SSH Terminal</span>
+        </div>
+      </header>
 
+      <div className="cf-container">
         {/* Form card */}
         <div className="cf-card">
-          <form className="cf-form" onSubmit={handleSubmit} noValidate>
+          <form id="cf-form" className="cf-form" onSubmit={handleSubmit} noValidate>
             <div className="cf-field">
               <label htmlFor="host">Host</label>
               <input
@@ -357,11 +590,13 @@ export function ConnectForm({
               'main',
             )}
 
-            <button type="submit" className="cf-btn" disabled={isLoading}>
-              {isLoading
-                ? <><span className="cf-spinner" aria-hidden="true" />Connecting…</>
-                : hasMultiple ? 'Connect All' : 'Connect'}
-            </button>
+            {renderJumpSection(
+              fields,
+              (field, value) => setFields((prev) => ({ ...prev, [field]: value })),
+              'main',
+              isLoading,
+              'main',
+            )}
           </form>
 
           {/* Extra host entries — same layout as main form */}
@@ -427,6 +662,14 @@ export function ConnectForm({
                 `extra-${i}`,
               )}
 
+              {renderJumpSection(
+                entry,
+                (field, value) => handleExtraChange(i, field, value),
+                i,
+                isLoading,
+                `extra-${i}`,
+              )}
+
               {/* Profile chips + Recent chips for this entry */}
               {(profiles.length > 0 || history.length > 0) && (
                 <div className="cf-extra-chips">
@@ -462,15 +705,33 @@ export function ConnectForm({
             </div>
           ))}
 
-          {/* Add host button — Save as Profile の上 */}
+          {/* Add host button */}
           <div className="cf-add-host-row">
             <button
               type="button"
               className="cf-add-host-btn"
               onClick={addExtraEntry}
-              disabled={isLoading}
+              disabled={isLoading || extraEntries.length >= 3}
+              title={extraEntries.length >= 3 ? 'Maximum 4 hosts' : undefined}
             >
               + Add host
+            </button>
+            {extraEntries.length > 0 && (
+              <span className="cf-host-count">{extraEntries.length + 1} / 4</span>
+            )}
+          </div>
+
+          {/* Connect button — applies to all hosts */}
+          <div className="cf-connect-row">
+            <button
+              type="submit"
+              form="cf-form"
+              className="cf-btn"
+              disabled={isLoading}
+            >
+              {isLoading
+                ? <><span className="cf-spinner" aria-hidden="true" />Connecting…</>
+                : hasMultiple ? `Connect All (${extraEntries.length + 1})` : 'Connect'}
             </button>
           </div>
 
@@ -482,18 +743,34 @@ export function ConnectForm({
             onChange={handleFileChange}
           />
 
-          {/* Save as Profile */}
-          <div className="cf-save-profile-row">
-            {!showSaveProfile ? (
-              <button
-                type="button"
-                className="cf-save-profile-btn"
-                onClick={() => setShowSaveProfile(true)}
-                disabled={isLoading}
-              >
-                + Save as Profile
-              </button>
-            ) : (
+          {error && <div className="cf-error" role="alert">{error}</div>}
+          {importMessage && <div className="cf-import-message" role="status">{importMessage}</div>}
+
+          {/* Profiles section */}
+          <div className="cf-profiles">
+            <div className="cf-profiles-header">
+              <p className="cf-profiles-label">Profiles</p>
+              <div className="cf-profiles-actions">
+                <button
+                  type="button"
+                  className="cf-save-profile-btn"
+                  onClick={() => setShowSaveProfile((v) => !v)}
+                  disabled={isLoading}
+                >
+                  + Save
+                </button>
+                <button
+                  type="button"
+                  className="cf-import-btn"
+                  onClick={handleImportClick}
+                  disabled={isLoading}
+                  title="Import hosts from ~/.ssh/config"
+                >
+                  Import ~/.ssh/config
+                </button>
+              </div>
+            </div>
+            {showSaveProfile && (
               <div className="cf-save-profile-inline">
                 <input
                   type="text"
@@ -511,29 +788,10 @@ export function ConnectForm({
                   Save
                 </button>
                 <button type="button" className="cf-save-profile-cancel" onClick={() => setShowSaveProfile(false)}>
-                  Cancel
+                  ×
                 </button>
               </div>
             )}
-          </div>
-
-          {error && <div className="cf-error" role="alert">{error}</div>}
-          {importMessage && <div className="cf-import-message" role="status">{importMessage}</div>}
-
-          {/* Profiles section */}
-          <div className="cf-profiles">
-            <div className="cf-profiles-header">
-              <p className="cf-profiles-label">Profiles</p>
-              <button
-                type="button"
-                className="cf-import-btn"
-                onClick={handleImportClick}
-                disabled={isLoading}
-                title="Import hosts from ~/.ssh/config"
-              >
-                Import ~/.ssh/config
-              </button>
-            </div>
           {profiles.length > 0 && (
             <ul className="cf-profiles-list">
               {profiles.map((p) => (
@@ -610,19 +868,6 @@ export function ConnectForm({
           ))}
         </ul>
 
-        {/* Footer links */}
-        <div className="cf-footer-links">
-          {onShowSessions && (
-            <button className="cf-sessions-btn" onClick={onShowSessions}>
-              View active sessions →
-            </button>
-          )}
-          {onShowLogs && (
-            <button className="cf-sessions-btn" onClick={onShowLogs}>
-              View logs →
-            </button>
-          )}
-        </div>
       </div>
     </div>
   );

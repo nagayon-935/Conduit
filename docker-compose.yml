@@ -51,6 +51,20 @@ services:
       retries: 10
       start_period: 5s
 
+  # ── テスト用 SSH サーバー（パスワード認証・公開鍵認証） ──────────────────────
+  sshd-test:
+    build:
+      context: ./docker/sshd-test
+    container_name: conduit-sshd-test
+    ports:
+      - "2223:22"
+    healthcheck:
+      test: ["CMD", "nc", "-z", "localhost", "22"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+      start_period: 5s
+
   # ── Conduit バックエンド ───────────────────────────────────────────────────
   backend:
     build:

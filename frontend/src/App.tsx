@@ -9,6 +9,7 @@ import type { AppState, AuthType, LayoutType } from './types';
 import { saveSession, loadSession, clearSession } from './utils/session';
 import { useConnectionHistory } from './hooks/useConnectionHistory';
 import { useProfiles } from './hooks/useProfiles';
+import { fetchSessions } from './api/sessions';
 import './App.css';
 
 type ViewState = 'main' | 'sessions' | 'logs';
@@ -39,6 +40,22 @@ export default function App() {
 
   const { history, addEntry } = useConnectionHistory();
   const { profiles } = useProfiles();
+
+  // ── Active session count (for TabBar badge) ──────────────────────────────
+  const [sessionCount, setSessionCount] = useState<number | undefined>(undefined);
+  useEffect(() => {
+    async function refresh() {
+      try {
+        const data = await fetchSessions();
+        setSessionCount(data.length);
+      } catch {
+        // network errors are silently ignored — badge just won't update
+      }
+    }
+    refresh();
+    const iv = setInterval(refresh, 10_000);
+    return () => clearInterval(iv);
+  }, []);
 
   // ── Layout switching ────────────────────────────────────────────────────
   function switchLayout(newLayout: LayoutType) {
@@ -237,6 +254,7 @@ export default function App() {
         history={history}
         onShowSessions={() => setViewState('sessions')}
         onShowLogs={() => setViewState('logs')}
+        sessionCount={sessionCount}
       />
     );
   }

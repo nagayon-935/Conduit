@@ -1,14 +1,118 @@
 /* ── Page wrapper ────────────────────────────────────────────────────── */
 .cf-page {
-  display: flex;
-  /* align-items: flex-start にしてページ全体をスクロール可能にする。
-     コンテナが短い場合の縦中央揃えは cf-container の margin: auto で実現 */
-  align-items: flex-start;
-  justify-content: center;
-  min-height: 100vh;
+  height: 100%;
+  overflow-y: auto;
   background: #1a1b26;
-  padding: clamp(24px, 4vh, 64px) clamp(16px, 4vw, 48px);
+  padding-top: 52px; /* topbar の高さ分だけ余白 */
   box-sizing: border-box;
+}
+
+/* ── Fixed top bar ───────────────────────────────────────────────────── */
+.cf-topbar {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 52px;
+  background: #1a1b26;
+  border-bottom: 1px solid #1e2030;
+  display: flex;
+  align-items: center;
+  padding: 0 20px;
+  gap: 14px;
+  z-index: 200;
+}
+
+.cf-topbar-left {
+  position: relative;
+  flex-shrink: 0;
+}
+
+.cf-topbar-menu-btn {
+  width: 34px;
+  height: 34px;
+  border: 1px solid #2a2c3d;
+  border-radius: 8px;
+  background: transparent;
+  color: #565f89;
+  font-size: 18px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: border-color 0.12s, color 0.12s, background 0.12s;
+}
+.cf-topbar-menu-btn:hover,
+.cf-topbar-menu-btn.active {
+  border-color: #414868;
+  color: #c0caf5;
+  background: #24283b;
+}
+
+.cf-nav-dropdown {
+  position: absolute;
+  left: 0;
+  top: calc(100% + 6px);
+  min-width: 160px;
+  background: #1e2030;
+  border: 1px solid #414868;
+  border-radius: 10px;
+  padding: 4px;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.6);
+}
+
+.cf-nav-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  padding: 9px 14px;
+  border: none;
+  border-radius: 7px;
+  background: transparent;
+  color: #a9b1d6;
+  font-size: 14px;
+  cursor: pointer;
+  text-align: left;
+  transition: background 0.1s, color 0.1s;
+}
+.cf-nav-item:hover {
+  background: rgba(122, 162, 247, 0.1);
+  color: #c0caf5;
+}
+
+.cf-nav-badge {
+  font-size: 11px;
+  font-weight: 700;
+  color: #7aa2f7;
+  background: rgba(122, 162, 247, 0.15);
+  border-radius: 10px;
+  padding: 1px 8px;
+  min-width: 22px;
+  text-align: center;
+}
+
+.cf-topbar-brand {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.cf-topbar-logo {
+  font-size: 20px;
+  line-height: 1;
+}
+
+.cf-topbar-title {
+  font-size: 16px;
+  font-weight: 700;
+  color: #c0caf5;
+  letter-spacing: -0.3px;
+}
+
+.cf-topbar-subtitle {
+  font-size: 12px;
+  color: #414868;
 }
 
 /* コンテナ幅を画面幅に応じてスケール: 最小560px → 最大800px */
@@ -17,37 +121,9 @@
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: clamp(24px, 3vh, 44px);
-  /* コンテンツが短い場合は margin: auto で縦中央揃え */
-  margin: auto 0;
-}
-
-/* ── Hero ────────────────────────────────────────────────────────────── */
-.cf-hero {
-  text-align: center;
-}
-
-.cf-logo {
-  font-size: clamp(48px, 6vw, 88px);
-  line-height: 1;
-  margin-bottom: clamp(12px, 1.5vh, 22px);
-  filter: drop-shadow(0 0 32px rgba(122, 162, 247, 0.45));
-}
-
-.cf-title {
-  font-size: clamp(44px, 5.5vw, 80px);
-  font-weight: 800;
-  color: #c0caf5;
-  margin: 0 0 clamp(8px, 1vh, 14px) 0;
-  letter-spacing: clamp(-2px, -0.2vw, -3px);
-  line-height: 1;
-}
-
-.cf-subtitle {
-  font-size: clamp(16px, 1.6vw, 22px);
-  font-weight: 500;
-  color: #7aa2f7;
-  margin: 0;
+  gap: clamp(20px, 2.5vh, 36px);
+  margin: 0 auto;
+  padding: clamp(24px, 3vh, 44px) clamp(16px, 4vw, 48px);
 }
 
 /* ── Card ────────────────────────────────────────────────────────────── */
@@ -93,7 +169,8 @@ label {
 
 /* Input */
 input[type='text'],
-input[type='number'] {
+input[type='number'],
+input[type='password'] {
   background: #1a1b26;
   border: 1px solid #2a2c3d;
   border-radius: clamp(8px, 0.8vw, 12px);
@@ -108,24 +185,34 @@ input[type='number'] {
 }
 
 input[type='text']::placeholder,
-input[type='number']::placeholder { color: #3b4072; }
+input[type='number']::placeholder,
+input[type='password']::placeholder { color: #3b4072; }
 
 input[type='text']:focus,
-input[type='number']:focus {
+input[type='number']:focus,
+input[type='password']:focus {
   border-color: #7aa2f7;
   box-shadow: 0 0 0 3px rgba(122, 162, 247, 0.14);
 }
 
 input[type='text']:disabled,
-input[type='number']:disabled { opacity: 0.45; cursor: not-allowed; }
+input[type='number']:disabled,
+input[type='password']:disabled { opacity: 0.45; cursor: not-allowed; }
 
 input[type='number']::-webkit-inner-spin-button,
 input[type='number']::-webkit-outer-spin-button { -webkit-appearance: none; }
 input[type='number'] { -moz-appearance: textfield; appearance: textfield; }
 
+/* ── Connect row (wraps the submit button, always at bottom of card) ─── */
+.cf-connect-row {
+  margin-top: clamp(14px, 1.5vh, 20px);
+  padding-top: clamp(14px, 1.5vh, 20px);
+  border-top: 1px solid #1e2030;
+}
+
 /* ── Button ──────────────────────────────────────────────────────────── */
 .cf-btn {
-  margin-top: clamp(4px, 0.5vh, 8px);
+  margin-top: 0;
   padding: clamp(13px, 1.3vh, 18px);
   background: linear-gradient(135deg, #7aa2f7, #9ece6a);
   border: none;
@@ -264,44 +351,22 @@ input[type='number'] { -moz-appearance: textfield; appearance: textfield; }
   color: #9aa5ce;
 }
 
-/* ── Sessions / Logs links ───────────────────────────────────────────── */
-.cf-footer-links {
-  display: flex;
-  gap: clamp(12px, 1.2vw, 20px);
-  flex-wrap: wrap;
-  justify-content: center;
-}
 
-.cf-sessions-btn {
-  background: transparent;
-  border: none;
-  color: #3b4072;
-  font-size: clamp(12px, 0.95vw, 15px);
-  cursor: pointer;
-  padding: 4px 0;
-  transition: color 0.15s;
-}
-.cf-sessions-btn:hover { color: #7aa2f7; }
-
-/* ── Save as Profile ─────────────────────────────────────────────────── */
-.cf-save-profile-row {
-  margin-top: clamp(10px, 1vh, 14px);
-}
-
+/* ── Save as Profile (inline in profiles header) ─────────────────────── */
 .cf-save-profile-btn {
-  background: transparent;
-  border: 1px dashed #2a2c3d;
-  border-radius: clamp(6px, 0.6vw, 9px);
-  color: #565f89;
-  font-size: clamp(12px, 0.9vw, 14px);
-  padding: clamp(7px, 0.7vh, 10px) clamp(12px, 1.2vw, 16px);
+  font-size: clamp(11px, 0.8vw, 12px);
+  color: #9ece6a;
+  background: none;
+  border: 1px solid #3b4072;
+  border-radius: 6px;
+  padding: 4px 10px;
   cursor: pointer;
-  width: 100%;
-  transition: border-color 0.15s, color 0.15s;
+  transition: background 0.12s, color 0.12s;
+  white-space: nowrap;
 }
 .cf-save-profile-btn:hover:not(:disabled) {
-  border-color: #7aa2f7;
-  color: #7aa2f7;
+  background: rgba(158, 206, 106, 0.1);
+  color: #b9db7c;
 }
 .cf-save-profile-btn:disabled { opacity: 0.4; cursor: not-allowed; }
 
@@ -309,6 +374,7 @@ input[type='number'] { -moz-appearance: textfield; appearance: textfield; }
   display: flex;
   gap: 8px;
   align-items: center;
+  margin-bottom: 10px;
 }
 
 .cf-profile-name-input {
@@ -364,6 +430,12 @@ input[type='number'] { -moz-appearance: textfield; appearance: textfield; }
   align-items: center;
   justify-content: space-between;
   margin-bottom: clamp(10px, 1vh, 14px);
+}
+
+.cf-profiles-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
 }
 
 .cf-profiles-label {
@@ -582,6 +654,15 @@ input[type='number'] { -moz-appearance: textfield; appearance: textfield; }
 /* ── Add host button ─────────────────────────────────────────────────── */
 .cf-add-host-row {
   margin-top: 8px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.cf-host-count {
+  font-size: 11px;
+  color: #414868;
+  font-variant-numeric: tabular-nums;
 }
 
 .cf-add-host-btn {
@@ -592,7 +673,7 @@ input[type='number'] { -moz-appearance: textfield; appearance: textfield; }
   font-size: clamp(12px, 0.9vw, 14px);
   padding: clamp(7px, 0.7vh, 10px) clamp(12px, 1.2vw, 16px);
   cursor: pointer;
-  width: 100%;
+  flex: 1;
   transition: border-color 0.15s, color 0.15s;
 }
 
@@ -606,6 +687,65 @@ input[type='number'] { -moz-appearance: textfield; appearance: textfield; }
   cursor: not-allowed;
 }
 
+/* ── ProxyJump inline ─────────────────────────────────────────────────── */
+.cf-jump-inline {
+  padding-top: clamp(10px, 1vh, 14px);
+  border-top: 1px solid #1e2030;
+}
+
+.cf-jump-host-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.cf-jump-host-row input {
+  flex: 1;
+  min-width: 0;
+}
+
+.cf-jump-clear-btn {
+  flex-shrink: 0;
+  width: 30px;
+  height: 30px;
+  border: 1px solid #2a2c3d;
+  border-radius: 6px;
+  background: transparent;
+  color: #414868;
+  font-size: 11px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: color 0.12s, border-color 0.12s;
+  padding: 0;
+  line-height: 1;
+}
+.cf-jump-clear-btn:hover:not(:disabled) {
+  color: #f7768e;
+  border-color: rgba(247, 118, 142, 0.4);
+}
+.cf-jump-clear-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+
+.cf-jump-expanded {
+  margin-top: clamp(10px, 1vh, 14px);
+  padding: clamp(10px, 1vh, 14px);
+  background: rgba(187, 154, 247, 0.04);
+  border: 1px solid #2a2c3d;
+  border-radius: clamp(8px, 0.8vw, 12px);
+  display: flex;
+  flex-direction: column;
+  gap: clamp(10px, 1vh, 14px);
+}
+
+.cf-jump-optional {
+  font-weight: 400;
+  color: #414868;
+  font-size: 0.85em;
+  letter-spacing: 0;
+  text-transform: none;
+}
+
 /* ── Auth type selector ───────────────────────────────────────────────── */
 .cf-auth-tabs { display: flex; gap: 4px; margin-bottom: 12px; }
 .cf-auth-tab {
@@ -617,21 +757,34 @@ input[type='number'] { -moz-appearance: textfield; appearance: textfield; }
 .cf-auth-tab:hover:not(.active) { background: #2e3252; color: #a9b1d6; }
 .cf-auth-tab:disabled { opacity: 0.4; cursor: not-allowed; }
 
-/* ── Key textarea ─────────────────────────────────────────────────────── */
-.cf-key-textarea {
-  width: 100%; height: 80px; resize: vertical; font-family: monospace; font-size: 11px;
-  background: #1a1b26; color: #a9b1d6; border: 1px solid #414868; border-radius: 6px;
-  padding: 8px; box-sizing: border-box;
+/* ── Key file picker ──────────────────────────────────────────────────── */
+.cf-key-picker-row {
+  display: flex; flex-direction: row; align-items: center; gap: 10px;
 }
-.cf-key-textarea:focus { outline: none; border-color: #7aa2f7; }
-.cf-key-textarea:disabled { opacity: 0.45; cursor: not-allowed; }
-
 .cf-key-upload-btn {
-  font-size: 11px; padding: 4px 10px; border-radius: 5px; border: 1px solid #414868;
-  background: transparent; color: #565f89; cursor: pointer; margin-top: 4px;
+  font-size: 14px; padding: 8px 16px; border-radius: 6px;
+  border: 1px solid #7aa2f7; background: transparent; color: #7aa2f7;
+  cursor: pointer; white-space: nowrap; flex-shrink: 0;
+  font-weight: 600;
+  transition: background 0.15s ease, color 0.15s ease, box-shadow 0.15s ease;
 }
-.cf-key-upload-btn:hover:not(:disabled) { border-color: #7aa2f7; color: #7aa2f7; }
+.cf-key-upload-btn:hover:not(:disabled) {
+  background: #7aa2f7; color: #1a1b26;
+  box-shadow: 0 0 12px rgba(122, 162, 247, 0.45);
+}
+.cf-key-upload-btn:active:not(:disabled) {
+  background: #5a85e0; box-shadow: none;
+}
 .cf-key-upload-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+.cf-key-filename {
+  font-size: 14px; color: #7aa2f7; font-family: monospace;
+  background: rgba(122, 162, 247, 0.08); border: 1px solid rgba(122, 162, 247, 0.25);
+  border-radius: 4px; padding: 5px 10px;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0;
+}
+.cf-key-placeholder {
+  font-size: 14px; color: #414868; font-style: italic;
+}
 
 /* ── Responsive: スマホは固定幅を解除して全幅 ────────────────────────── */
 @media (max-width: 600px) {
@@ -643,7 +796,8 @@ input[type='number'] { -moz-appearance: textfield; appearance: textfield; }
     padding-top: 40px;
   }
   input[type='text'],
-  input[type='number'] {
+  input[type='number'],
+  input[type='password'] {
     font-size: 16px; /* iOS zoom 防止 */
   }
 }

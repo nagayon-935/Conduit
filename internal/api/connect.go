@@ -27,6 +27,14 @@ type ConnectRequest struct {
 	AuthType   string `json:"auth_type"`             // "vault" | "password" | "pubkey"
 	Password   string `json:"password,omitempty"`
 	PrivateKey string `json:"private_key,omitempty"`
+
+	// ProxyJump (optional — omit or set JumpHost="" to disable)
+	JumpHost       string `json:"jump_host,omitempty"`
+	JumpPort       int    `json:"jump_port,omitempty"`
+	JumpUser       string `json:"jump_user,omitempty"`
+	JumpAuthType   string `json:"jump_auth_type,omitempty"` // "vault" | "password" | "pubkey"
+	JumpPassword   string `json:"jump_password,omitempty"`
+	JumpPrivateKey string `json:"jump_private_key,omitempty"`
 }
 
 // ConnectResponse is returned on a successful connection.
@@ -99,6 +107,45 @@ func (h *Handler) handleConnect(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
+	// ── ProxyJump ────────────────────────────────────────────────────────────
+	if strings.TrimSpace(req.JumpHost) != "" {
+		jumpPort := req.JumpPort
+		if jumpPort == 0 {
+			jumpPort = 22
+		}
+		jumpAuthType := req.JumpAuthType
+		if jumpAuthType == "" {
+			jumpAuthType = "vault"
+		}
+
+		dialReq.JumpHost = strings.TrimSpace(req.JumpHost)
+		dialReq.JumpPort = jumpPort
+		dialReq.JumpUser = strings.TrimSpace(req.JumpUser)
+		dialReq.JumpAuthType = jumpAuthType
+
+		switch jumpAuthType {
+		case "password":
+			dialReq.JumpPassword = req.JumpPassword
+		case "pubkey":
+			dialReq.JumpUserPrivateKey = []byte(req.JumpPrivateKey)
+		default: // "vault"
+			jumpPrivKeyPEM, jumpPubKeySSH, err := sshconn.GenerateKeyPair()
+			if err != nil {
+				slog.Error("jump host key pair generation failed", "error", err)
+				apiError(w, http.StatusInternalServerError, "key generation failed", "KEY_GEN_ERROR")
+				return
+			}
+			jumpCert, err := h.vault.SignPublicKey(r.Context(), jumpPubKeySSH, dialReq.JumpUser)
+			if err != nil {
+				slog.Error("vault signing failed for jump host", "error", err)
+				apiError(w, http.StatusBadGateway, "vault signing failed: "+err.Error(), "VAULT_ERROR")
+				return
+			}
+			dialReq.JumpPrivateKey = jumpPrivKeyPEM
+			dialReq.JumpCertificate = []byte(jumpCert)
+		}
+	}
+
 	sshClient, sshSess, stdin, stdout, err := h.dialer.Dial(r.Context(), dialReq)
 	if err != nil {
 		slog.Error("SSH dial failed", "host", req.Host, "port", req.Port, "error", err)
@@ -159,6 +206,21 @@ func validateConnectRequest(req ConnectRequest) error {
 	}
 	if req.AuthType == "pubkey" && strings.TrimSpace(req.PrivateKey) == "" {
 		return fmt.Errorf("private_key is required for pubkey auth")
+	}
+	// ProxyJump validation (only when jump_host is set)
+	if strings.TrimSpace(req.JumpHost) != "" {
+		if strings.TrimSpace(req.JumpUser) == "" {
+			return fmt.Errorf("jump_user is required when jump_host is set")
+		}
+		if req.JumpPort < 0 || req.JumpPort > maxPort {
+			return fmt.Errorf("jump_port must be between 1 and 65535")
+		}
+		if req.JumpAuthType == "password" && strings.TrimSpace(req.JumpPassword) == "" {
+			return fmt.Errorf("jump_password is required for jump host password auth")
+		}
+		if req.JumpAuthType == "pubkey" && strings.TrimSpace(req.JumpPrivateKey) == "" {
+			return fmt.Errorf("jump_private_key is required for jump host pubkey auth")
+		}
 	}
 	return nil
 }

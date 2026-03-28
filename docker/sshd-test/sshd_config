@@ -1,0 +1,20 @@
+Port 22
+PermitRootLogin no
+
+# パスワード認証を許可（テスト用）
+PasswordAuthentication yes
+ChallengeResponseAuthentication no
+UsePAM yes
+
+# 公開鍵認証を許可（テスト用）
+PubkeyAuthentication yes
+AuthorizedKeysFile .ssh/authorized_keys
+
+# Vault 証明書は不要（テスト用コンテナなので無効）
+# TrustedUserCAKeys は未設定
+
+LogLevel INFO
+PrintMotd no
+
+ClientAliveInterval 60
+ClientAliveCountMax 10
