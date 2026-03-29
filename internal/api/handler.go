@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"log/slog"
 	"net/http"
+	"slices"
 
 	"github.com/gorilla/websocket"
 	"github.com/nagayon-935/conduit/internal/config"
@@ -31,6 +32,7 @@ type Handler struct {
 
 // NewHandler constructs a Handler wiring together all application dependencies.
 func NewHandler(cfg *config.Config, sm *session.Manager, vc vault.VaultClient, d sshconn.SSHDialer, ls *connlog.Store) *Handler {
+	allowed := cfg.AllowedOrigins
 	return &Handler{
 		config:   cfg,
 		sessions: sm,
@@ -38,8 +40,13 @@ func NewHandler(cfg *config.Config, sm *session.Manager, vc vault.VaultClient, d
 		dialer:   d,
 		logs:     ls,
 		upgrader: websocket.Upgrader{
-			// Allow all origins for development; tighten for production.
-			CheckOrigin:     func(r *http.Request) bool { return true },
+			CheckOrigin: func(r *http.Request) bool {
+				origin := r.Header.Get("Origin")
+				if origin == "" {
+					return true // same-origin requests have no Origin header
+				}
+				return slices.Contains(allowed, origin)
+			},
 			ReadBufferSize:  wsReadBufferSize,
 			WriteBufferSize: wsWriteBufferSize,
 		},
@@ -55,7 +62,7 @@ func (h *Handler) Routes() http.Handler {
 	mux.HandleFunc("GET /api/sessions", h.handleListSessions)
 	mux.HandleFunc("DELETE /api/sessions/{token}", h.handleKillSession)
 	mux.HandleFunc("GET /api/logs", h.handleListLogs)
-	return corsMiddleware(loggingMiddleware(mux))
+	return corsMiddleware(h.config.AllowedOrigins)(loggingMiddleware(mux))
 }
 
 // handleHealth is a simple liveness probe.
@@ -85,18 +92,25 @@ func writeJSON(w http.ResponseWriter, code int, v any) {
 	}
 }
 
-// corsMiddleware adds permissive CORS headers (suitable for development).
-func corsMiddleware(next http.Handler) http.Handler {
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("Access-Control-Allow-Origin", "*")
-		w.Header().Set("Access-Control-Allow-Methods", "GET, POST, DELETE, OPTIONS")
-		w.Header().Set("Access-Control-Allow-Headers", "Content-Type, Authorization")
-		if r.Method == http.MethodOptions {
-			w.WriteHeader(http.StatusNoContent)
-			return
-		}
-		next.ServeHTTP(w, r)
-	})
+// corsMiddleware validates the Origin header against the configured allowlist
+// and sets CORS response headers accordingly.
+func corsMiddleware(allowed []string) func(http.Handler) http.Handler {
+	return func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			origin := r.Header.Get("Origin")
+			if origin != "" && slices.Contains(allowed, origin) {
+				w.Header().Set("Access-Control-Allow-Origin", origin)
+				w.Header().Set("Access-Control-Allow-Methods", "GET, POST, DELETE, OPTIONS")
+				w.Header().Set("Access-Control-Allow-Headers", "Content-Type, Authorization")
+				w.Header().Set("Vary", "Origin")
+			}
+			if r.Method == http.MethodOptions {
+				w.WriteHeader(http.StatusNoContent)
+				return
+			}
+			next.ServeHTTP(w, r)
+		})
+	}
 }
 
 // loggingMiddleware logs each incoming HTTP request.

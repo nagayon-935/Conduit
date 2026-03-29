@@ -31,8 +31,8 @@ func TestLoad_AllFields(t *testing.T) {
 	if cfg.VaultAddr != "http://vault.test:8200" {
 		t.Errorf("VaultAddr = %q, want %q", cfg.VaultAddr, "http://vault.test:8200")
 	}
-	if cfg.VaultToken != "s.mytoken" {
-		t.Errorf("VaultToken = %q, want %q", cfg.VaultToken, "s.mytoken")
+	if cfg.VaultToken.Value() != "s.mytoken" {
+		t.Errorf("VaultToken = %q, want %q", cfg.VaultToken.Value(), "s.mytoken")
 	}
 	if cfg.VaultSSHRole != "conduit-role" {
 		t.Errorf("VaultSSHRole = %q, want %q", cfg.VaultSSHRole, "conduit-role")

@@ -96,11 +96,12 @@ func mockDialerErr(msg string) *mockSSHDialer {
 func newTestConfig() *config.Config {
 	return &config.Config{
 		VaultAddr:         "http://vault.test:8200",
-		VaultToken:        "test-token",
+		VaultToken:        config.Secret("test-token"),
 		VaultSSHMount:     "ssh",
 		VaultSSHRole:      "test-role",
 		GracePeriod:       15 * time.Minute,
 		SessionGCInterval: time.Minute,
+		AllowedOrigins:    []string{"http://localhost:5173", "https://conduit.akilab.internal"},
 	}
 }
 
@@ -416,8 +417,33 @@ func TestHandleHealth(t *testing.T) {
 // CORS ミドルウェアのテスト
 // ============================================================
 
-// TestCORSHeaders は通常リクエストに Access-Control ヘッダが付与されることを検証する。
+// TestCORSHeaders は許可されたオリジンからのリクエストに Access-Control ヘッダが付与されることを検証する。
 func TestCORSHeaders(t *testing.T) {
+	t.Parallel()
+
+	const allowedOrigin = "http://localhost:5173"
+	handler := newTestHandler(mockVaultOK(), mockDialerOK())
+	req := httptest.NewRequest(http.MethodGet, "/healthz", nil)
+	req.Header.Set("Origin", allowedOrigin)
+	w := httptest.NewRecorder()
+	handler.ServeHTTP(w, req)
+
+	if got := w.Header().Get("Access-Control-Allow-Origin"); got != allowedOrigin {
+		t.Errorf("Access-Control-Allow-Origin = %q, want %q", got, allowedOrigin)
+	}
+	if got := w.Header().Get("Access-Control-Allow-Methods"); got == "" {
+		t.Error("Access-Control-Allow-Methods header should not be empty")
+	}
+	if got := w.Header().Get("Access-Control-Allow-Headers"); got == "" {
+		t.Error("Access-Control-Allow-Headers header should not be empty")
+	}
+	if got := w.Header().Get("Vary"); got != "Origin" {
+		t.Errorf("Vary = %q, want %q", got, "Origin")
+	}
+}
+
+// TestCORSHeaders_NoOrigin はオリジンなしのリクエストに ACAO ヘッダが付与されないことを検証する。
+func TestCORSHeaders_NoOrigin(t *testing.T) {
 	t.Parallel()
 
 	handler := newTestHandler(mockVaultOK(), mockDialerOK())
@@ -425,14 +451,8 @@ func TestCORSHeaders(t *testing.T) {
 	w := httptest.NewRecorder()
 	handler.ServeHTTP(w, req)
 
-	if got := w.Header().Get("Access-Control-Allow-Origin"); got != "*" {
-		t.Errorf("Access-Control-Allow-Origin = %q, want %q", got, "*")
-	}
-	if got := w.Header().Get("Access-Control-Allow-Methods"); got == "" {
-		t.Error("Access-Control-Allow-Methods header should not be empty")
-	}
-	if got := w.Header().Get("Access-Control-Allow-Headers"); got == "" {
-		t.Error("Access-Control-Allow-Headers header should not be empty")
+	if got := w.Header().Get("Access-Control-Allow-Origin"); got != "" {
+		t.Errorf("Access-Control-Allow-Origin = %q, want empty for no-origin request", got)
 	}
 }
 
@@ -442,6 +462,7 @@ func TestCORSPreflight(t *testing.T) {
 
 	handler := newTestHandler(mockVaultOK(), mockDialerOK())
 	req := httptest.NewRequest(http.MethodOptions, "/api/connect", nil)
+	req.Header.Set("Origin", "http://localhost:5173")
 	w := httptest.NewRecorder()
 	handler.ServeHTTP(w, req)
 

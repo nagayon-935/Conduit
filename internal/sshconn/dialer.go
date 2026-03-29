@@ -5,11 +5,13 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"log/slog"
 	"net"
 	"strings"
 	"time"
 
 	"golang.org/x/crypto/ssh"
+	"golang.org/x/crypto/ssh/knownhosts"
 )
 
 const (
@@ -53,11 +55,30 @@ type SSHDialer interface {
 }
 
 // Dialer is the concrete implementation of SSHDialer.
-type Dialer struct{}
+type Dialer struct {
+	knownHostsPath string
+}
 
-// NewDialer constructs a Dialer.
-func NewDialer() *Dialer {
-	return &Dialer{}
+// NewDialer constructs a Dialer. knownHostsPath may be empty, in which case
+// host key verification is disabled with a warning (development only).
+func NewDialer(knownHostsPath string) *Dialer {
+	return &Dialer{knownHostsPath: knownHostsPath}
+}
+
+// hostKeyCallback returns an ssh.HostKeyCallback.
+// If knownHostsPath is set, it uses knownhosts.New for strict verification.
+// If empty, it falls back to InsecureIgnoreHostKey with a warning.
+func (d *Dialer) hostKeyCallback() (ssh.HostKeyCallback, error) {
+	if d.knownHostsPath == "" {
+		slog.Warn("KNOWN_HOSTS_PATH is not set: SSH host key verification is disabled. " +
+			"Set KNOWN_HOSTS_PATH to enable verification and prevent MITM attacks.")
+		return ssh.InsecureIgnoreHostKey(), nil //nolint:gosec
+	}
+	cb, err := knownhosts.New(d.knownHostsPath)
+	if err != nil {
+		return nil, fmt.Errorf("sshconn: load known_hosts %q: %w", d.knownHostsPath, err)
+	}
+	return cb, nil
 }
 
 // connWithCloser wraps a net.Conn and closes an additional io.Closer on Close.
@@ -94,6 +115,11 @@ func buildAuthMethods(authType, password string, privateKey, certificate, userPr
 // Dial connects to the SSH server described in req, optionally via a ProxyJump host,
 // requests a PTY, and starts a shell.
 func (d *Dialer) Dial(ctx context.Context, req ConnectRequest) (*ssh.Client, *ssh.Session, io.WriteCloser, io.Reader, error) {
+	hkc, err := d.hostKeyCallback()
+	if err != nil {
+		return nil, nil, nil, nil, err
+	}
+
 	authMethods, err := buildAuthMethods(req.AuthType, req.Password, req.PrivateKey, req.Certificate, req.UserPrivateKey)
 	if err != nil {
 		return nil, nil, nil, nil, fmt.Errorf("sshconn: build auth methods: %w", err)
@@ -104,7 +130,7 @@ func (d *Dialer) Dial(ctx context.Context, req ConnectRequest) (*ssh.Client, *ss
 	sshCfg := &ssh.ClientConfig{
 		User:            req.User,
 		Auth:            authMethods,
-		HostKeyCallback: ssh.InsecureIgnoreHostKey(), //nolint:gosec
+		HostKeyCallback: hkc,
 		Timeout:         dialTimeout,
 	}
 
@@ -124,7 +150,7 @@ func (d *Dialer) Dial(ctx context.Context, req ConnectRequest) (*ssh.Client, *ss
 		jumpCfg := &ssh.ClientConfig{
 			User:            req.JumpUser,
 			Auth:            jumpAuthMethods,
-			HostKeyCallback: ssh.InsecureIgnoreHostKey(), //nolint:gosec
+			HostKeyCallback: hkc,
 			Timeout:         dialTimeout,
 		}
 

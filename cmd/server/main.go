@@ -47,13 +47,13 @@ func main() {
 	)
 
 	// Step 2: Build application dependencies.
-	vaultClient, err := vault.NewClient(cfg.VaultAddr, cfg.VaultToken, cfg.VaultSSHMount, cfg.VaultSSHRole)
+	vaultClient, err := vault.NewClient(cfg.VaultAddr, cfg.VaultToken.Value(), cfg.VaultSSHMount, cfg.VaultSSHRole)
 	if err != nil {
 		slog.Error("failed to create vault client", "error", err)
 		os.Exit(1)
 	}
 
-	dialer := sshconn.NewDialer()
+	dialer := sshconn.NewDialer(cfg.KnownHostsPath)
 	sessionManager := session.NewManager(cfg)
 	logStore := connlog.NewStore(connLogStoreSize)
 

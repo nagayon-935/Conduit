@@ -158,7 +158,7 @@ func TestDial_Success(t *testing.T) {
 	// Sign the user public key with the CA.
 	certStr := signCert(t, userSSHPub, caSigner, []string{"testuser"})
 
-	d := NewDialer()
+	d := NewDialer("") // empty = insecure for tests
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
@@ -216,7 +216,7 @@ func TestDial_InvalidCertificate(t *testing.T) {
 	// Sign with untrusted CA.
 	certStr := signCert(t, userSSHPub, untrustedSigner, []string{"testuser"})
 
-	d := NewDialer()
+	d := NewDialer("") // empty = insecure for tests
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
@@ -257,7 +257,7 @@ func TestDial_ConnectionRefused(t *testing.T) {
 	}
 	certStr := signCert(t, userSSHPub, caSigner, []string{"testuser"})
 
-	d := NewDialer()
+	d := NewDialer("") // empty = insecure for tests
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
@@ -315,7 +315,7 @@ func TestDial_ContextTimeout(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 50*time.Millisecond)
 	defer cancel()
 
-	d := NewDialer()
+	d := NewDialer("") // empty = insecure for tests
 	_, _, _, _, err = d.Dial(ctx, ConnectRequest{
 		Host:        "127.0.0.1",
 		Port:        port,

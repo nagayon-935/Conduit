@@ -202,12 +202,12 @@ func buildTestServer(t *testing.T, vaultURL string) *httptest.Server {
 		SessionGCInterval: 1 * time.Minute,
 	}
 
-	vaultClient, err := vaultpkg.NewClient(cfg.VaultAddr, cfg.VaultToken, cfg.VaultSSHMount, cfg.VaultSSHRole)
+	vaultClient, err := vaultpkg.NewClient(cfg.VaultAddr, cfg.VaultToken.Value(), cfg.VaultSSHMount, cfg.VaultSSHRole)
 	if err != nil {
 		t.Fatalf("vault.NewClient: %v", err)
 	}
 
-	dialer := sshconn.NewDialer()
+	dialer := sshconn.NewDialer("") // empty = insecure for integration tests
 	sm := session.NewManager(cfg)
 	handler := api.NewHandler(cfg, sm, vaultClient, dialer, connlog.NewStore(200))
 	return httptest.NewServer(handler.Routes())
