@@ -48,11 +48,11 @@ type ConnectResponse struct {
 // It generates a key pair, signs it via Vault, dials SSH, and registers a session.
 func (h *Handler) handleConnect(w http.ResponseWriter, r *http.Request) {
 	var req ConnectRequest
+	defer r.Body.Close()
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		apiError(w, http.StatusBadRequest, "invalid JSON body", "BAD_REQUEST")
 		return
 	}
-	defer r.Body.Close()
 
 	if err := validateConnectRequest(req); err != nil {
 		apiError(w, http.StatusBadRequest, err.Error(), "INVALID_REQUEST")
@@ -172,7 +172,10 @@ func (h *Handler) handleConnect(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Record connection in the log.
-	logID, _ := pkgtoken.Generate()
+	logID, err := pkgtoken.Generate()
+	if err != nil {
+		slog.Warn("failed to generate connection log ID", "error", err)
+	}
 	h.logs.Add(&connlog.Entry{
 		ID:          logID,
 		Host:        req.Host,

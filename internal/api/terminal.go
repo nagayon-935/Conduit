@@ -7,6 +7,7 @@ import (
 	"net/http"
 
 	"github.com/gorilla/websocket"
+	"github.com/nagayon-935/conduit/internal/session"
 	"github.com/nagayon-935/conduit/internal/tunnel"
 )
 
@@ -34,6 +35,8 @@ func (h *Handler) handleTerminal(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	safeWS := sess.GetSafeConn(connID)
+
 	slog.Info("terminal connected", "token", token, "connID", connID)
 
 	cfg := tunnel.DefaultPumpConfig()
@@ -49,7 +52,7 @@ func (h *Handler) handleTerminal(w http.ResponseWriter, r *http.Request) {
 	// Block until this connection closes or the session terminates.
 	select {
 	case <-sess.Done():
-		sendWSExit(ws)
+		sendWSExit(safeWS)
 	case <-removedCh:
 		// writePump already called RemoveWebSocket; grace period may have started.
 	}
@@ -63,7 +66,7 @@ func generateConnID() string {
 	return fmt.Sprintf("%x", b)
 }
 
-func sendWSExit(ws *websocket.Conn) {
+func sendWSExit(ws *session.SafeConn) {
 	if ws == nil {
 		return
 	}

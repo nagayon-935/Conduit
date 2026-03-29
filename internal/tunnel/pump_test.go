@@ -450,8 +450,10 @@ func TestWritePumpAndControlMessage(t *testing.T) {
 
 	sess := session.NewSession("test", "host", 22, "user", nil, nil, nil, nil, 15*time.Minute)
 	cfg := DefaultPumpConfig()
+	sess.AddWebSocket("conn1", serverWs)
+	safeWS := sess.GetSafeConn("conn1")
 
-	go writePump("conn1", serverWs, sess, cfg)
+	go writePump("conn1", serverWs, safeWS, sess, cfg)
 
 	// Test TextMessage (Control Message - ping)
 	ping, _ := json.Marshal(wsMessage{Type: "ping"})

@@ -2,6 +2,7 @@ package sshconn
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"net"
@@ -67,12 +68,7 @@ type connWithCloser struct {
 }
 
 func (c *connWithCloser) Close() error {
-	err1 := c.Conn.Close()
-	err2 := c.extra.Close()
-	if err1 != nil {
-		return err1
-	}
-	return err2
+	return errors.Join(c.Conn.Close(), c.extra.Close())
 }
 
 // buildAuthMethods returns the appropriate ssh.AuthMethod slice for the given auth parameters.
@@ -145,6 +141,12 @@ func (d *Dialer) Dial(ctx context.Context, req ConnectRequest) (*ssh.Client, *ss
 		var jumpClient *ssh.Client
 		select {
 		case <-ctx.Done():
+			// Drain the goroutine so a successful dial is properly closed.
+			go func() {
+				if res := <-jumpCh; res.client != nil {
+					res.client.Close()
+				}
+			}()
 			return nil, nil, nil, nil, fmt.Errorf("sshconn: context cancelled while dialing jump host: %w", ctx.Err())
 		case res := <-jumpCh:
 			if res.err != nil {
@@ -185,6 +187,12 @@ func (d *Dialer) Dial(ctx context.Context, req ConnectRequest) (*ssh.Client, *ss
 
 		select {
 		case <-ctx.Done():
+			// Drain the goroutine so a successful dial is properly closed.
+			go func() {
+				if res := <-ch; res.client != nil {
+					res.client.Close()
+				}
+			}()
 			return nil, nil, nil, nil, fmt.Errorf("sshconn: context cancelled while dialing: %w", ctx.Err())
 		case res := <-ch:
 			if res.err != nil {

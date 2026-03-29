@@ -45,7 +45,8 @@ func StartSessionPumps(ctx context.Context, sess *session.Session, cfg PumpConfi
 // StartConnectionPump launches the writePump for a single WebSocket connection.
 // Must be called once per WebSocket connection from handleTerminal.
 func StartConnectionPump(connID string, ws *websocket.Conn, sess *session.Session, cfg PumpConfig) {
-	go writePump(connID, ws, sess, cfg)
+	safeWS := sess.GetSafeConn(connID)
+	go writePump(connID, ws, safeWS, sess, cfg)
 }
 
 const sshReadBufSize = 32 * 1024 // 32 KB
@@ -98,7 +99,8 @@ func readPump(ctx context.Context, sess *session.Session, cfg PumpConfig) {
 // writePump reads WebSocket messages and routes them for a single connection.
 // This is a connection-level goroutine – exits when the WebSocket closes.
 // It calls sess.RemoveWebSocket(connID) on exit via defer.
-func writePump(connID string, ws *websocket.Conn, sess *session.Session, cfg PumpConfig) {
+// ws is used for reads; safeWS is used for writes (serialized via mutex).
+func writePump(connID string, ws *websocket.Conn, safeWS *session.SafeConn, sess *session.Session, cfg PumpConfig) {
 	defer sess.RemoveWebSocket(connID)
 	for {
 		select {
@@ -116,7 +118,7 @@ func writePump(connID string, ws *websocket.Conn, sess *session.Session, cfg Pum
 		}
 
 		if msgType == websocket.TextMessage {
-			handleControlMessage(ws, sess, msg, cfg)
+			handleControlMessage(safeWS, sess, msg, cfg)
 			continue
 		}
 		DrainOrDrop(sess.FromClient, msg, cfg.BackpressureTimeout)
@@ -125,7 +127,7 @@ func writePump(connID string, ws *websocket.Conn, sess *session.Session, cfg Pum
 
 // handleControlMessage parses a JSON control frame and acts on it.
 // ws is the specific connection that sent the frame (for ping→pong responses).
-func handleControlMessage(ws *websocket.Conn, sess *session.Session, msg []byte, cfg PumpConfig) {
+func handleControlMessage(ws *session.SafeConn, sess *session.Session, msg []byte, cfg PumpConfig) {
 	var frame wsMessage
 	if err := json.Unmarshal(msg, &frame); err != nil {
 		DrainOrDrop(sess.FromClient, msg, cfg.BackpressureTimeout)
@@ -135,13 +137,12 @@ func handleControlMessage(ws *websocket.Conn, sess *session.Session, msg []byte,
 	switch frame.Type {
 	case "ping":
 		pong, _ := json.Marshal(wsMessage{Type: "pong"})
-		_ = ws.SetWriteDeadline(time.Now().Add(cfg.WriteTimeout))
-		if err := ws.WriteMessage(websocket.TextMessage, pong); err != nil {
+		if err := ws.WriteWithDeadline(time.Now().Add(cfg.WriteTimeout), websocket.TextMessage, pong); err != nil {
 			slog.Warn("handleControlMessage: pong write error", "error", err)
 		}
 	case "resize":
-		ws := WindowSize{Cols: frame.Cols, Rows: frame.Rows}
-		if err := ResizePTY(sess.SSHSession, ws); err != nil {
+		size := WindowSize{Cols: frame.Cols, Rows: frame.Rows}
+		if err := ResizePTY(sess.SSHSession, size); err != nil {
 			slog.Warn("handleControlMessage: resize PTY error", "error", err)
 		}
 	default:

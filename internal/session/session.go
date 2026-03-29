@@ -59,7 +59,7 @@ type Session struct {
 
 	gracePeriod time.Duration
 
-	wsConns   map[string]*websocket.Conn
+	wsConns   map[string]*SafeConn
 	wsNotify  map[string]chan struct{}
 	pumpsOnce sync.Once
 
@@ -87,7 +87,7 @@ func NewSession(token, host string, port int, user string, client *ssh.Client, s
 		ctx:         ctx,
 		cancel:      cancel,
 		gracePeriod: gracePeriod,
-		wsConns:     make(map[string]*websocket.Conn),
+		wsConns:     make(map[string]*SafeConn),
 		wsNotify:    make(map[string]chan struct{}),
 	}
 }
@@ -142,7 +142,7 @@ func (s *Session) AddWebSocket(connID string, ws *websocket.Conn) <-chan struct{
 	defer s.mu.Unlock()
 
 	notify := make(chan struct{})
-	s.wsConns[connID] = ws
+	s.wsConns[connID] = NewSafeConn(ws)
 	s.wsNotify[connID] = notify
 	s.State = StateConnected
 	s.ExpiresAt = time.Now().Add(s.gracePeriod)
@@ -168,7 +168,7 @@ func (s *Session) RemoveWebSocket(connID string) {
 
 func (s *Session) BroadcastToWebSockets(msgType int, data []byte) {
 	s.mu.RLock()
-	conns := make([]*websocket.Conn, 0, len(s.wsConns))
+	conns := make([]*SafeConn, 0, len(s.wsConns))
 	for _, ws := range s.wsConns {
 		conns = append(conns, ws)
 	}
@@ -179,6 +179,14 @@ func (s *Session) BroadcastToWebSockets(msgType int, data []byte) {
 			slog.Debug("BroadcastToWebSockets: write error", "error", err)
 		}
 	}
+}
+
+// GetSafeConn returns the SafeConn wrapper for the given connection ID.
+// Returns nil if not found.
+func (s *Session) GetSafeConn(connID string) *SafeConn {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	return s.wsConns[connID]
 }
 
 func (s *Session) ActiveWSCount() int {
