@@ -43,7 +43,7 @@ export function ConnectForm({
   const [profileName, setProfileName] = useState('');
   const [importMessage, setImportMessage] = useState<string | null>(null);
   const [sshConfigFile, setSshConfigFile] = useState<File | null>(null);
-  const [sshDirHandle, setSshDirHandle] = useState<FileSystemDirectoryHandle | null>(null);
+  const sshKeyInputRefs = useRef<Map<string, HTMLInputElement | null>>(new Map());
   const [loadedProfileId, setLoadedProfileId] = useState<string | null>(null);
   const profilesRef = useRef(profiles);
   profilesRef.current = profiles;
@@ -94,10 +94,6 @@ export function ConnectForm({
     );
     setTimeout(() => setImportMessage(null), 3000);
 
-    // IdentityFile がある場合、ディレクトリハンドルが既にあれば自動読み込み
-    if (sshDirHandle) {
-      await loadKeysFromDir(sshDirHandle);
-    }
   }
 
   function handleFileChange(e: React.ChangeEvent<HTMLInputElement>) {
@@ -108,49 +104,28 @@ export function ConnectForm({
     e.target.value = '';
   }
 
-  async function loadKeysFromDir(dirHandle: FileSystemDirectoryHandle) {
-    let loaded = 0;
-    for (const p of profilesRef.current) {
-      if (p.authType === 'pubkey' && p.privateKeyName && !p.privateKeyContent) {
-        try {
-          const fh = await dirHandle.getFileHandle(p.privateKeyName);
-          const file = await fh.getFile();
-          const content = await file.text();
-          storeProfileKeys(p.id, { privateKeyContent: content, privateKeyName: p.privateKeyName });
+  function handlePendingKeyFileChange(basename: string, keyType: 'main' | 'jump', e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = (ev) => {
+      const content = (ev.target?.result as string) ?? '';
+      for (const p of profilesRef.current) {
+        if (keyType === 'main' && p.privateKeyName === basename && !p.privateKeyContent) {
+          storeProfileKeys(p.id, { privateKeyContent: content, privateKeyName: file.name });
           if (p.id === loadedProfileIdRef.current) {
-            setFields(prev => ({ ...prev, privateKey: content, privateKeyName: p.privateKeyName! }));
+            setFields(prev => ({ ...prev, privateKey: content, privateKeyName: file.name }));
           }
-          loaded++;
-        } catch { /* ファイルが見つからなければスキップ */ }
-      }
-      if (p.jumpAuthType === 'pubkey' && p.jumpPrivateKeyName && !p.jumpPrivateKeyContent) {
-        try {
-          const fh = await dirHandle.getFileHandle(p.jumpPrivateKeyName);
-          const file = await fh.getFile();
-          const content = await file.text();
-          storeProfileKeys(p.id, { jumpPrivateKeyContent: content, jumpPrivateKeyName: p.jumpPrivateKeyName });
+        } else if (keyType === 'jump' && p.jumpPrivateKeyName === basename && !p.jumpPrivateKeyContent) {
+          storeProfileKeys(p.id, { jumpPrivateKeyContent: content, jumpPrivateKeyName: file.name });
           if (p.id === loadedProfileIdRef.current) {
-            setFields(prev => ({ ...prev, jumpPrivateKey: content, jumpPrivateKeyName: p.jumpPrivateKeyName! }));
+            setFields(prev => ({ ...prev, jumpPrivateKey: content, jumpPrivateKeyName: file.name }));
           }
-          loaded++;
-        } catch { /* スキップ */ }
+        }
       }
-    }
-    if (loaded > 0) {
-      setImportMessage(`${loaded} key(s) loaded automatically.`);
-      setTimeout(() => setImportMessage(null), 3000);
-    }
-  }
-
-  async function handleGrantSshDir() {
-    try {
-      const dirHandle = await (window as unknown as { showDirectoryPicker: (opts?: object) => Promise<FileSystemDirectoryHandle> })
-        .showDirectoryPicker({ mode: 'read' });
-      setSshDirHandle(dirHandle);
-      await loadKeysFromDir(dirHandle);
-    } catch {
-      // ユーザーがキャンセルした場合は何もしない
-    }
+    };
+    reader.readAsText(file);
+    e.target.value = '';
   }
 
   function handleHistoryClick(entry: HistoryEntry) {
@@ -886,26 +861,50 @@ export function ConnectForm({
                 </button>
               </div>
             )}
-          {!sshDirHandle && profiles.some(p =>
-            (p.authType === 'pubkey' && p.privateKeyName && !p.privateKeyContent) ||
-            (p.jumpAuthType === 'pubkey' && p.jumpPrivateKeyName && !p.jumpPrivateKeyContent)
-          ) && (
-            <div className="cf-key-pick-banner">
-              <div className="cf-key-pick-info">
-                <span className="cf-key-pick-icon">🔑</span>
-                <span>Grant access to your <strong>~/.ssh</strong> directory to load keys automatically</span>
+          {(() => {
+            const pending: Array<{ basename: string; keyType: 'main' | 'jump' }> = [];
+            const seen = new Set<string>();
+            for (const p of profiles) {
+              if (p.authType === 'pubkey' && p.privateKeyName && !p.privateKeyContent) {
+                const k = `main:${p.privateKeyName}`;
+                if (!seen.has(k)) { seen.add(k); pending.push({ basename: p.privateKeyName, keyType: 'main' }); }
+              }
+              if (p.jumpAuthType === 'pubkey' && p.jumpPrivateKeyName && !p.jumpPrivateKeyContent) {
+                const k = `jump:${p.jumpPrivateKeyName}`;
+                if (!seen.has(k)) { seen.add(k); pending.push({ basename: p.jumpPrivateKeyName, keyType: 'jump' }); }
+              }
+            }
+            if (pending.length === 0) return null;
+            return (
+              <div className="cf-key-pick-banner">
+                <div className="cf-key-pick-icon">🔑</div>
+                {pending.map(({ basename, keyType }) => {
+                  const inputKey = `${keyType}:${basename}`;
+                  return (
+                    <div key={inputKey} className="cf-key-pick-row">
+                      <input
+                        ref={(el) => sshKeyInputRefs.current.set(inputKey, el)}
+                        type="file"
+                        style={{ display: 'none' }}
+                        onChange={(e) => handlePendingKeyFileChange(basename, keyType, e)}
+                      />
+                      <span className="cf-key-pick-name">
+                        {basename}
+                        {keyType === 'jump' && <span className="cf-key-pick-jump"> (jump)</span>}
+                      </span>
+                      <button
+                        type="button"
+                        className="cf-key-pick-select-btn"
+                        onClick={() => sshKeyInputRefs.current.get(inputKey)?.click()}
+                      >
+                        Select
+                      </button>
+                    </div>
+                  );
+                })}
               </div>
-              <div className="cf-key-pick-actions">
-                <button
-                  type="button"
-                  className="cf-key-pick-select-btn"
-                  onClick={handleGrantSshDir}
-                >
-                  Allow
-                </button>
-              </div>
-            </div>
-          )}
+            );
+          })()}
           {profiles.length > 0 && (
             <ul className="cf-profiles-list">
               {profiles.map((p) => (
