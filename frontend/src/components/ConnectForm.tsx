@@ -104,19 +104,20 @@ export function ConnectForm({
     e.target.value = '';
   }
 
-  function handlePendingKeyFileChange(basename: string, keyType: 'main' | 'jump', e: React.ChangeEvent<HTMLInputElement>) {
+  function handlePendingKeyFileChange(basename: string, e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
     if (!file) return;
     const reader = new FileReader();
     reader.onload = (ev) => {
       const content = (ev.target?.result as string) ?? '';
       for (const p of profilesRef.current) {
-        if (keyType === 'main' && p.privateKeyName === basename && !p.privateKeyContent) {
+        if (p.privateKeyName === basename && !p.privateKeyContent) {
           storeProfileKeys(p.id, { privateKeyContent: content, privateKeyName: file.name });
           if (p.id === loadedProfileIdRef.current) {
             setFields(prev => ({ ...prev, privateKey: content, privateKeyName: file.name }));
           }
-        } else if (keyType === 'jump' && p.jumpPrivateKeyName === basename && !p.jumpPrivateKeyContent) {
+        }
+        if (p.jumpPrivateKeyName === basename && !p.jumpPrivateKeyContent) {
           storeProfileKeys(p.id, { jumpPrivateKeyContent: content, jumpPrivateKeyName: file.name });
           if (p.id === loadedProfileIdRef.current) {
             setFields(prev => ({ ...prev, jumpPrivateKey: content, jumpPrivateKeyName: file.name }));
@@ -866,12 +867,10 @@ export function ConnectForm({
             const seen = new Set<string>();
             for (const p of profiles) {
               if (p.authType === 'pubkey' && p.privateKeyName && !p.privateKeyContent) {
-                const k = `main:${p.privateKeyName}`;
-                if (!seen.has(k)) { seen.add(k); pending.push({ basename: p.privateKeyName, keyType: 'main' }); }
+                if (!seen.has(p.privateKeyName)) { seen.add(p.privateKeyName); pending.push({ basename: p.privateKeyName, keyType: 'main' }); }
               }
               if (p.jumpAuthType === 'pubkey' && p.jumpPrivateKeyName && !p.jumpPrivateKeyContent) {
-                const k = `jump:${p.jumpPrivateKeyName}`;
-                if (!seen.has(k)) { seen.add(k); pending.push({ basename: p.jumpPrivateKeyName, keyType: 'jump' }); }
+                if (!seen.has(p.jumpPrivateKeyName)) { seen.add(p.jumpPrivateKeyName); pending.push({ basename: p.jumpPrivateKeyName, keyType: 'jump' }); }
               }
             }
             if (pending.length === 0) return null;
@@ -886,7 +885,7 @@ export function ConnectForm({
                         ref={(el) => sshKeyInputRefs.current.set(inputKey, el)}
                         type="file"
                         style={{ display: 'none' }}
-                        onChange={(e) => handlePendingKeyFileChange(basename, keyType, e)}
+                        onChange={(e) => handlePendingKeyFileChange(basename, e)}
                       />
                       <span className="cf-key-pick-name">
                         {basename}
