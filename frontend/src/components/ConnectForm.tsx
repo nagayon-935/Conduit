@@ -897,7 +897,7 @@ export function ConnectForm({
                         className="cf-key-pick-select-btn"
                         onClick={() => sshKeyInputRefs.current.get(inputKey)?.click()}
                       >
-                        Select
+                        Allow
                       </button>
                     </div>
                   );
