@@ -615,28 +615,35 @@ export function ConnectForm({
 
             {entry.jumpAuthType === 'pubkey' && (
               <div className="cf-field">
-                <label>Private Key</label>
-                <div className="cf-key-picker-row">
-                  <input
-                    ref={(el) => { jumpKeyFileRefs.current[jkIdx] = el; }}
-                    type="file"
-                    style={{ display: 'none' }}
-                    onChange={(e) => handleJumpKeyFileChange(keyFileIndex, e)}
-                  />
-                  <button
-                    type="button"
-                    className="cf-key-upload-btn"
-                    onClick={() => jumpKeyFileRefs.current[jkIdx]?.click()}
-                    disabled={disabled}
-                  >
-                    Choose key file…
-                  </button>
-                  {entry.jumpPrivateKeyName ? (
-                    <span className="cf-key-filename" title={entry.jumpPrivateKeyName}>{entry.jumpPrivateKeyName}</span>
-                  ) : (
-                    <span className="cf-key-placeholder">No file selected</span>
-                  )}
-                </div>
+                <input
+                  ref={(el) => { jumpKeyFileRefs.current[jkIdx] = el; }}
+                  type="file"
+                  style={{ display: 'none' }}
+                  onChange={(e) => handleJumpKeyFileChange(keyFileIndex, e)}
+                />
+                <KeyDropZone
+                  keyName={entry.jumpPrivateKeyName}
+                  disabled={disabled}
+                  onSelectClick={() => jumpKeyFileRefs.current[jkIdx]?.click()}
+                  onFileDrop={(file) => {
+                    const reader = new FileReader();
+                    reader.onload = (ev) => {
+                      const content = (ev.target?.result as string) ?? '';
+                      if (!content.includes('-----BEGIN')) return;
+                      if (keyFileIndex === 'main') {
+                        setFields(prev => ({ ...prev, jumpPrivateKey: content, jumpPrivateKeyName: file.name }));
+                        if (loadedProfileIdRef.current) {
+                          storeProfileKeys(loadedProfileIdRef.current, { jumpPrivateKeyContent: content, jumpPrivateKeyName: file.name });
+                        }
+                      } else {
+                        setExtraEntries(prev => prev.map((e2, i) =>
+                          i === (keyFileIndex as number) ? { ...e2, jumpPrivateKey: content, jumpPrivateKeyName: file.name } : e2
+                        ));
+                      }
+                    };
+                    reader.readAsText(file);
+                  }}
+                />
               </div>
             )}
           </div>
