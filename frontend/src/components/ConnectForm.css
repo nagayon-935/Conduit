@@ -904,8 +904,12 @@ input[type='number'] { -moz-appearance: textfield; appearance: textfield; }
 }
 .cf-key-dropzone-hint {
   font-size: 12px;
-  color: #7aa2f7;
+  color: #a9b1d6;
   flex: 1;
+}
+.cf-key-dropzone-expected {
+  color: #e0af68;
+  font-weight: 600;
 }
 .cf-key-dropzone-name {
   font-size: 12px;

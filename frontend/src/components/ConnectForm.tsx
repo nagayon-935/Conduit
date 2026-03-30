@@ -46,7 +46,10 @@ function KeyDropZone({ keyName, keyLoaded, disabled, onSelectClick, onFileDrop }
       ) : (
         <>
           <span className="cf-key-dropzone-icon">🔑</span>
-          <span className="cf-key-dropzone-hint">Drop private key here</span>
+          {keyName
+            ? <span className="cf-key-dropzone-hint"><span className="cf-key-dropzone-expected">{keyName}</span> をドロップ</span>
+            : <span className="cf-key-dropzone-hint">Drop private key here</span>
+          }
           <span className="cf-key-dropzone-sep">or</span>
           <button type="button" className="cf-key-dropzone-btn" onClick={onSelectClick} disabled={disabled}>Select file</button>
         </>
