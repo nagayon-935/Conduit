@@ -16,8 +16,9 @@ interface ConnectFormProps {
   sessionCount?: number;
 }
 
-function KeyDropZone({ keyName, disabled, onSelectClick, onFileDrop }: {
+function KeyDropZone({ keyName, keyLoaded, disabled, onSelectClick, onFileDrop }: {
   keyName: string;
+  keyLoaded: boolean;
   disabled: boolean;
   onSelectClick: () => void;
   onFileDrop: (file: File) => void;
@@ -25,7 +26,7 @@ function KeyDropZone({ keyName, disabled, onSelectClick, onFileDrop }: {
   const [over, setOver] = useState(false);
   return (
     <div
-      className={`cf-key-dropzone${over ? ' cf-key-dropzone--over' : ''}${keyName ? ' cf-key-dropzone--loaded' : ''}`}
+      className={`cf-key-dropzone${over ? ' cf-key-dropzone--over' : ''}${keyLoaded ? ' cf-key-dropzone--loaded' : ''}`}
       onDragOver={(e) => { e.preventDefault(); if (!disabled) setOver(true); }}
       onDragLeave={() => setOver(false)}
       onDrop={(e) => {
@@ -36,7 +37,7 @@ function KeyDropZone({ keyName, disabled, onSelectClick, onFileDrop }: {
         if (file) onFileDrop(file);
       }}
     >
-      {keyName ? (
+      {keyLoaded ? (
         <>
           <span className="cf-key-dropzone-icon">✓</span>
           <span className="cf-key-dropzone-name" title={keyName}>{keyName}</span>
@@ -489,6 +490,7 @@ export function ConnectForm({
             />
             <KeyDropZone
               keyName={entry.privateKeyName}
+              keyLoaded={!!entry.privateKey}
               disabled={disabled}
               onSelectClick={() => {
                 const idx = keyFileIndex === 'main' ? 0 : (keyFileIndex as number) + 1;
@@ -623,6 +625,7 @@ export function ConnectForm({
                 />
                 <KeyDropZone
                   keyName={entry.jumpPrivateKeyName}
+                  keyLoaded={!!entry.jumpPrivateKey}
                   disabled={disabled}
                   onSelectClick={() => jumpKeyFileRefs.current[jkIdx]?.click()}
                   onFileDrop={(file) => {
