@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect, useCallback, type FormEvent } from 'react';
+import { useState, useRef, useEffect, type FormEvent } from 'react';
 import { connectToHost } from '../api/connect';
 import type { AppState, AuthType, HistoryEntry } from '../types';
 import { useProfiles } from '../hooks/useProfiles';
@@ -14,6 +14,44 @@ interface ConnectFormProps {
   onShowSessions?: () => void;
   onShowLogs?: () => void;
   sessionCount?: number;
+}
+
+function KeyDropZone({ keyName, disabled, onSelectClick, onFileDrop }: {
+  keyName: string;
+  disabled: boolean;
+  onSelectClick: () => void;
+  onFileDrop: (file: File) => void;
+}) {
+  const [over, setOver] = useState(false);
+  return (
+    <div
+      className={`cf-key-dropzone${over ? ' cf-key-dropzone--over' : ''}${keyName ? ' cf-key-dropzone--loaded' : ''}`}
+      onDragOver={(e) => { e.preventDefault(); if (!disabled) setOver(true); }}
+      onDragLeave={() => setOver(false)}
+      onDrop={(e) => {
+        e.preventDefault();
+        setOver(false);
+        if (disabled) return;
+        const file = e.dataTransfer.files?.[0];
+        if (file) onFileDrop(file);
+      }}
+    >
+      {keyName ? (
+        <>
+          <span className="cf-key-dropzone-icon">✓</span>
+          <span className="cf-key-dropzone-name" title={keyName}>{keyName}</span>
+          <button type="button" className="cf-key-dropzone-change" onClick={onSelectClick} disabled={disabled}>Change</button>
+        </>
+      ) : (
+        <>
+          <span className="cf-key-dropzone-icon">🔑</span>
+          <span className="cf-key-dropzone-hint">Drop private key here</span>
+          <span className="cf-key-dropzone-sep">or</span>
+          <button type="button" className="cf-key-dropzone-btn" onClick={onSelectClick} disabled={disabled}>Select file</button>
+        </>
+      )}
+    </div>
+  );
 }
 
 const FEATURES = [
@@ -47,7 +85,6 @@ export function ConnectForm({
   const [loadedProfileId, setLoadedProfileId] = useState<string | null>(null);
   const [keyModalPending, setKeyModalPending] = useState<Array<{ basename: string; keyType: 'main' | 'jump' }> | null>(null);
   const keyModalInputRefs = useRef<Map<string, HTMLInputElement | null>>(new Map());
-  const [dragOver, setDragOver] = useState(false);
   const profilesRef = useRef(profiles);
   profilesRef.current = profiles;
   const loadedProfileIdRef = useRef(loadedProfileId);
@@ -227,39 +264,6 @@ export function ConnectForm({
     setKeyModalPending(null);
   }
 
-  // Drag & drop
-  const handleDragOver = useCallback((e: React.DragEvent<HTMLDivElement>) => {
-    e.preventDefault();
-    setDragOver(true);
-  }, []);
-
-  const handleDragLeave = useCallback((e: React.DragEvent<HTMLDivElement>) => {
-    e.preventDefault();
-    setDragOver(false);
-  }, []);
-
-  const handleDrop = useCallback((e: React.DragEvent<HTMLDivElement>) => {
-    e.preventDefault();
-    setDragOver(false);
-    const file = e.dataTransfer.files?.[0];
-    if (!file) return;
-    const reader = new FileReader();
-    reader.onload = (ev) => {
-      const content = (ev.target?.result as string) ?? '';
-      if (!content.includes('-----BEGIN')) return;
-      if (loadedProfileIdRef.current) {
-        storeProfileKeys(loadedProfileIdRef.current, { privateKeyContent: content, privateKeyName: file.name });
-        setFields(prev => ({ ...prev, privateKey: content, privateKeyName: file.name }));
-        setImportMessage(`Key loaded: ${file.name}`);
-        setTimeout(() => setImportMessage(null), 3000);
-      } else if (fields.authType === 'pubkey') {
-        setFields(prev => ({ ...prev, privateKey: content, privateKeyName: file.name }));
-        setImportMessage(`Key loaded: ${file.name}`);
-        setTimeout(() => setImportMessage(null), 3000);
-      }
-    };
-    reader.readAsText(file);
-  }, [fields.authType, storeProfileKeys]);
 
   function clearJumpFields(entryIndex: number | 'main') {
     const cleared = { jumpHost: '', jumpPort: '22', jumpUser: '', jumpAuthType: 'vault' as const, jumpPassword: '', jumpPrivateKey: '', jumpPrivateKeyName: '' };
@@ -474,39 +478,41 @@ export function ConnectForm({
 
         {entry.authType === 'pubkey' && (
           <div className="cf-field">
-            <label>Private Key</label>
-            <div className="cf-key-picker-row">
-              <input
-                ref={(el) => {
+            <input
+              ref={(el) => {
+                const idx = keyFileIndex === 'main' ? 0 : (keyFileIndex as number) + 1;
+                keyFileRefs.current[idx] = el;
+              }}
+              type="file"
+              style={{ display: 'none' }}
+              onChange={(e) => handleKeyFileChange(keyFileIndex, e)}
+            />
+            <KeyDropZone
+              keyName={entry.privateKeyName}
+              disabled={disabled}
+              onSelectClick={() => {
+                const idx = keyFileIndex === 'main' ? 0 : (keyFileIndex as number) + 1;
+                keyFileRefs.current[idx]?.click();
+              }}
+              onFileDrop={(file) => {
+                const reader = new FileReader();
+                reader.onload = (ev) => {
+                  const content = (ev.target?.result as string) ?? '';
+                  if (!content.includes('-----BEGIN')) return;
                   if (keyFileIndex === 'main') {
-                    keyFileRefs.current[0] = el;
+                    setFields(prev => ({ ...prev, privateKey: content, privateKeyName: file.name }));
+                    if (loadedProfileIdRef.current) {
+                      storeProfileKeys(loadedProfileIdRef.current, { privateKeyContent: content, privateKeyName: file.name });
+                    }
                   } else {
-                    keyFileRefs.current[(keyFileIndex as number) + 1] = el;
+                    setExtraEntries(prev => prev.map((e2, i) =>
+                      i === (keyFileIndex as number) ? { ...e2, privateKey: content, privateKeyName: file.name } : e2
+                    ));
                   }
-                }}
-                type="file"
-                style={{ display: 'none' }}
-                onChange={(e) => handleKeyFileChange(keyFileIndex, e)}
-              />
-              <button
-                type="button"
-                className="cf-key-upload-btn"
-                onClick={() => {
-                  const idx = keyFileIndex === 'main' ? 0 : (keyFileIndex as number) + 1;
-                  keyFileRefs.current[idx]?.click();
-                }}
-                disabled={disabled}
-              >
-                Choose key file…
-              </button>
-              {entry.privateKeyName ? (
-                <span className="cf-key-filename" title={entry.privateKeyName}>
-                  {entry.privateKeyName}
-                </span>
-              ) : (
-                <span className="cf-key-placeholder">No file selected</span>
-              )}
-            </div>
+                };
+                reader.readAsText(file);
+              }}
+            />
           </div>
         )}
       </>
@@ -688,10 +694,7 @@ export function ConnectForm({
       <div className="cf-container">
         {/* Form card */}
         <div
-          className={`cf-card${dragOver ? ' cf-card--drag-over' : ''}`}
-          onDragOver={handleDragOver}
-          onDragLeave={handleDragLeave}
-          onDrop={handleDrop}
+          className="cf-card"
         >
           <form id="cf-form" className="cf-form" onSubmit={handleSubmit} noValidate>
             <div className="cf-field">
