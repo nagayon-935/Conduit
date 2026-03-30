@@ -698,7 +698,7 @@ export function ConnectForm({
           )}
         </div>
         <div className="cf-topbar-brand">
-          <span className="cf-topbar-logo">⛵</span>
+          <img src="/favicon.svg" alt="Conduit Logo" className="cf-topbar-logo" />
           <span className="cf-topbar-title">Conduit</span>
           <span className="cf-topbar-subtitle">Secure Web SSH Terminal</span>
         </div>

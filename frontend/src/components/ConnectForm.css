@@ -99,8 +99,12 @@
 }
 
 .cf-topbar-logo {
-  font-size: 20px;
-  line-height: 1;
+  width: 24px;
+  height: 24px;
+  display: block;
+  border: 1px solid #414868;
+  border-radius: 6px;
+  background: #1a1b26;
 }
 
 .cf-topbar-title {
