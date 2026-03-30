@@ -43,9 +43,8 @@ export function ConnectForm({
   const [profileName, setProfileName] = useState('');
   const [importMessage, setImportMessage] = useState<string | null>(null);
   const [sshConfigFile, setSshConfigFile] = useState<File | null>(null);
-  const [pendingKeyPicks, setPendingKeyPicks] = useState<Array<{ basename: string; keyType: 'main' | 'jump' }>>([]);
+  const [sshDirHandle, setSshDirHandle] = useState<FileSystemDirectoryHandle | null>(null);
   const [loadedProfileId, setLoadedProfileId] = useState<string | null>(null);
-  const pendingKeyInputRef = useRef<HTMLInputElement>(null);
   const profilesRef = useRef(profiles);
   profilesRef.current = profiles;
   const loadedProfileIdRef = useRef(loadedProfileId);
@@ -95,24 +94,10 @@ export function ConnectForm({
     );
     setTimeout(() => setImportMessage(null), 3000);
 
-    // IdentityFile があるエントリの鍵ファイル選択キューを構築
-    const picks: Array<{ basename: string; keyType: 'main' | 'jump' }> = [];
-    const seen = new Set<string>();
-    for (const entry of entries) {
-      if (entry.identityFile) {
-        const bn = entry.identityFile.split('/').pop()?.split('\\').pop() ?? entry.identityFile;
-        const k = `main:${bn}`;
-        const alreadyStored = profiles.some(p => p.privateKeyName === bn && p.privateKeyContent);
-        if (!alreadyStored && !seen.has(k)) { seen.add(k); picks.push({ basename: bn, keyType: 'main' }); }
-      }
-      if (entry.jumpIdentityFile) {
-        const bn = entry.jumpIdentityFile.split('/').pop()?.split('\\').pop() ?? entry.jumpIdentityFile;
-        const k = `jump:${bn}`;
-        const alreadyStored = profiles.some(p => p.jumpPrivateKeyName === bn && p.jumpPrivateKeyContent);
-        if (!alreadyStored && !seen.has(k)) { seen.add(k); picks.push({ basename: bn, keyType: 'jump' }); }
-      }
+    // IdentityFile がある場合、ディレクトリハンドルが既にあれば自動読み込み
+    if (sshDirHandle) {
+      await loadKeysFromDir(sshDirHandle);
     }
-    if (picks.length > 0) setPendingKeyPicks(picks);
   }
 
   function handleFileChange(e: React.ChangeEvent<HTMLInputElement>) {
@@ -123,32 +108,49 @@ export function ConnectForm({
     e.target.value = '';
   }
 
-  function handlePendingKeySelected(e: React.ChangeEvent<HTMLInputElement>) {
-    const file = e.target.files?.[0];
-    if (!file || pendingKeyPicks.length === 0) return;
-    const { basename, keyType } = pendingKeyPicks[0];
-    const reader = new FileReader();
-    reader.onload = (ev) => {
-      const content = (ev.target?.result as string) ?? '';
-      // profilesRef.current は最新のプロファイル一覧を参照
-      for (const p of profilesRef.current) {
-        if (keyType === 'main' && p.privateKeyName === basename && !p.privateKeyContent) {
-          storeProfileKeys(p.id, { privateKeyContent: content, privateKeyName: file.name });
-          // 現在フォームに読み込まれているプロファイルであればフォームにも反映
+  async function loadKeysFromDir(dirHandle: FileSystemDirectoryHandle) {
+    let loaded = 0;
+    for (const p of profilesRef.current) {
+      if (p.authType === 'pubkey' && p.privateKeyName && !p.privateKeyContent) {
+        try {
+          const fh = await dirHandle.getFileHandle(p.privateKeyName);
+          const file = await fh.getFile();
+          const content = await file.text();
+          storeProfileKeys(p.id, { privateKeyContent: content, privateKeyName: p.privateKeyName });
           if (p.id === loadedProfileIdRef.current) {
-            setFields(prev => ({ ...prev, privateKey: content, privateKeyName: file.name }));
+            setFields(prev => ({ ...prev, privateKey: content, privateKeyName: p.privateKeyName! }));
           }
-        } else if (keyType === 'jump' && p.jumpPrivateKeyName === basename && !p.jumpPrivateKeyContent) {
-          storeProfileKeys(p.id, { jumpPrivateKeyContent: content, jumpPrivateKeyName: file.name });
-          if (p.id === loadedProfileIdRef.current) {
-            setFields(prev => ({ ...prev, jumpPrivateKey: content, jumpPrivateKeyName: file.name }));
-          }
-        }
+          loaded++;
+        } catch { /* ファイルが見つからなければスキップ */ }
       }
-      setPendingKeyPicks(prev => prev.slice(1));
-    };
-    reader.readAsText(file);
-    e.target.value = '';
+      if (p.jumpAuthType === 'pubkey' && p.jumpPrivateKeyName && !p.jumpPrivateKeyContent) {
+        try {
+          const fh = await dirHandle.getFileHandle(p.jumpPrivateKeyName);
+          const file = await fh.getFile();
+          const content = await file.text();
+          storeProfileKeys(p.id, { jumpPrivateKeyContent: content, jumpPrivateKeyName: p.jumpPrivateKeyName });
+          if (p.id === loadedProfileIdRef.current) {
+            setFields(prev => ({ ...prev, jumpPrivateKey: content, jumpPrivateKeyName: p.jumpPrivateKeyName! }));
+          }
+          loaded++;
+        } catch { /* スキップ */ }
+      }
+    }
+    if (loaded > 0) {
+      setImportMessage(`${loaded} key(s) loaded automatically.`);
+      setTimeout(() => setImportMessage(null), 3000);
+    }
+  }
+
+  async function handleGrantSshDir() {
+    try {
+      const dirHandle = await (window as unknown as { showDirectoryPicker: (opts?: object) => Promise<FileSystemDirectoryHandle> })
+        .showDirectoryPicker({ mode: 'read' });
+      setSshDirHandle(dirHandle);
+      await loadKeysFromDir(dirHandle);
+    } catch {
+      // ユーザーがキャンセルした場合は何もしない
+    }
   }
 
   function handleHistoryClick(entry: HistoryEntry) {
@@ -338,15 +340,6 @@ export function ConnectForm({
         jumpPrivateKey: p.jumpPrivateKeyContent ?? '',
         jumpPrivateKeyName: p.jumpPrivateKeyName ?? '',
       });
-      // 鍵が未登録であればすぐに選択を促す
-      const picks: Array<{ basename: string; keyType: 'main' | 'jump' }> = [];
-      if (p.authType === 'pubkey' && p.privateKeyName && !p.privateKeyContent) {
-        picks.push({ basename: p.privateKeyName, keyType: 'main' });
-      }
-      if (p.jumpAuthType === 'pubkey' && p.jumpPrivateKeyName && !p.jumpPrivateKeyContent) {
-        picks.push({ basename: p.jumpPrivateKeyName, keyType: 'jump' });
-      }
-      if (picks.length > 0) setPendingKeyPicks(picks);
       if (error) setError(null);
     }
   }
@@ -893,43 +886,23 @@ export function ConnectForm({
                 </button>
               </div>
             )}
-          {pendingKeyPicks.length > 0 && (
+          {!sshDirHandle && profiles.some(p =>
+            (p.authType === 'pubkey' && p.privateKeyName && !p.privateKeyContent) ||
+            (p.jumpAuthType === 'pubkey' && p.jumpPrivateKeyName && !p.jumpPrivateKeyContent)
+          ) && (
             <div className="cf-key-pick-banner">
-              <input ref={pendingKeyInputRef} type="file" style={{ display: 'none' }} onChange={handlePendingKeySelected} />
               <div className="cf-key-pick-info">
                 <span className="cf-key-pick-icon">🔑</span>
-                <span>
-                  Select key file: <strong>{pendingKeyPicks[0].basename}</strong>
-                  {pendingKeyPicks[0].keyType === 'jump' && <span className="cf-key-pick-jump">jump</span>}
-                </span>
+                <span>Grant access to your <strong>~/.ssh</strong> directory to load keys automatically</span>
               </div>
               <div className="cf-key-pick-actions">
                 <button
                   type="button"
                   className="cf-key-pick-select-btn"
-                  onClick={() => pendingKeyInputRef.current?.click()}
+                  onClick={handleGrantSshDir}
                 >
-                  Select
+                  Allow
                 </button>
-                <button
-                  type="button"
-                  className="cf-key-pick-skip-btn"
-                  onClick={() => setPendingKeyPicks(prev => prev.slice(1))}
-                >
-                  Skip
-                </button>
-                {pendingKeyPicks.length > 1 && (
-                  <button
-                    type="button"
-                    className="cf-key-pick-skip-btn"
-                    onClick={() => setPendingKeyPicks([])}
-                  >
-                    Skip all
-                  </button>
-                )}
-                {pendingKeyPicks.length > 1 && (
-                  <span className="cf-key-pick-count">{pendingKeyPicks.length} remaining</span>
-                )}
               </div>
             </div>
           )}
