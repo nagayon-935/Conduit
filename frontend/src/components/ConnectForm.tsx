@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect, type FormEvent } from 'react';
+import { useState, useRef, useEffect, useCallback, type FormEvent } from 'react';
 import { connectToHost } from '../api/connect';
 import type { AppState, AuthType, HistoryEntry } from '../types';
 import { useProfiles } from '../hooks/useProfiles';
@@ -43,8 +43,11 @@ export function ConnectForm({
   const [profileName, setProfileName] = useState('');
   const [importMessage, setImportMessage] = useState<string | null>(null);
   const [sshConfigFile, setSshConfigFile] = useState<File | null>(null);
-  const sshKeyInputRefs = useRef<Map<string, HTMLInputElement | null>>(new Map());
+
   const [loadedProfileId, setLoadedProfileId] = useState<string | null>(null);
+  const [keyModalPending, setKeyModalPending] = useState<Array<{ basename: string; keyType: 'main' | 'jump' }> | null>(null);
+  const keyModalInputRefs = useRef<Map<string, HTMLInputElement | null>>(new Map());
+  const [dragOver, setDragOver] = useState(false);
   const profilesRef = useRef(profiles);
   profilesRef.current = profiles;
   const loadedProfileIdRef = useRef(loadedProfileId);
@@ -104,30 +107,6 @@ export function ConnectForm({
     e.target.value = '';
   }
 
-  function handlePendingKeyFileChange(basename: string, e: React.ChangeEvent<HTMLInputElement>) {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    const reader = new FileReader();
-    reader.onload = (ev) => {
-      const content = (ev.target?.result as string) ?? '';
-      for (const p of profilesRef.current) {
-        if (p.privateKeyName === basename && !p.privateKeyContent) {
-          storeProfileKeys(p.id, { privateKeyContent: content, privateKeyName: file.name });
-          if (p.id === loadedProfileIdRef.current) {
-            setFields(prev => ({ ...prev, privateKey: content, privateKeyName: file.name }));
-          }
-        }
-        if (p.jumpPrivateKeyName === basename && !p.jumpPrivateKeyContent) {
-          storeProfileKeys(p.id, { jumpPrivateKeyContent: content, jumpPrivateKeyName: file.name });
-          if (p.id === loadedProfileIdRef.current) {
-            setFields(prev => ({ ...prev, jumpPrivateKey: content, jumpPrivateKeyName: file.name }));
-          }
-        }
-      }
-    };
-    reader.readAsText(file);
-    e.target.value = '';
-  }
 
   function handleHistoryClick(entry: HistoryEntry) {
     setLoadedProfileId(null);
@@ -201,6 +180,87 @@ export function ConnectForm({
     e.target.value = '';
   }
 
+  function handleModalKeyFileChange(basename: string, keyType: 'main' | 'jump', e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = (ev) => {
+      const content = (ev.target?.result as string) ?? '';
+      // Store into profile(s) that need this key
+      for (const p of profilesRef.current) {
+        if (keyType === 'main' && p.privateKeyName === basename && !p.privateKeyContent) {
+          storeProfileKeys(p.id, { privateKeyContent: content, privateKeyName: file.name });
+          if (p.id === loadedProfileIdRef.current) {
+            setFields(prev => ({ ...prev, privateKey: content, privateKeyName: file.name }));
+          }
+        }
+        if (keyType === 'jump' && p.jumpPrivateKeyName === basename && !p.jumpPrivateKeyContent) {
+          storeProfileKeys(p.id, { jumpPrivateKeyContent: content, jumpPrivateKeyName: file.name });
+          if (p.id === loadedProfileIdRef.current) {
+            setFields(prev => ({ ...prev, jumpPrivateKey: content, jumpPrivateKeyName: file.name }));
+          }
+        }
+      }
+      // Also update fields directly if loaded profile
+      if (keyType === 'main' && loadedProfileIdRef.current) {
+        setFields(prev => ({ ...prev, privateKey: content, privateKeyName: file.name }));
+      }
+      // Check if all pending keys are now filled → auto proceed
+      setKeyModalPending((prev) => {
+        if (!prev) return null;
+        const remaining = prev.filter((item) => item.basename !== basename);
+        if (remaining.length === 0) {
+          // All keys provided — dismiss modal and proceed
+          setTimeout(() => {
+            document.getElementById('cf-form')?.dispatchEvent(new Event('submit', { cancelable: true, bubbles: true }));
+          }, 50);
+          return null;
+        }
+        return remaining;
+      });
+    };
+    reader.readAsText(file);
+    e.target.value = '';
+  }
+
+  function handleModalCancel() {
+    setKeyModalPending(null);
+  }
+
+  // Drag & drop
+  const handleDragOver = useCallback((e: React.DragEvent<HTMLDivElement>) => {
+    e.preventDefault();
+    setDragOver(true);
+  }, []);
+
+  const handleDragLeave = useCallback((e: React.DragEvent<HTMLDivElement>) => {
+    e.preventDefault();
+    setDragOver(false);
+  }, []);
+
+  const handleDrop = useCallback((e: React.DragEvent<HTMLDivElement>) => {
+    e.preventDefault();
+    setDragOver(false);
+    const file = e.dataTransfer.files?.[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = (ev) => {
+      const content = (ev.target?.result as string) ?? '';
+      if (!content.includes('-----BEGIN')) return;
+      if (loadedProfileIdRef.current) {
+        storeProfileKeys(loadedProfileIdRef.current, { privateKeyContent: content, privateKeyName: file.name });
+        setFields(prev => ({ ...prev, privateKey: content, privateKeyName: file.name }));
+        setImportMessage(`Key loaded: ${file.name}`);
+        setTimeout(() => setImportMessage(null), 3000);
+      } else if (fields.authType === 'pubkey') {
+        setFields(prev => ({ ...prev, privateKey: content, privateKeyName: file.name }));
+        setImportMessage(`Key loaded: ${file.name}`);
+        setTimeout(() => setImportMessage(null), 3000);
+      }
+    };
+    reader.readAsText(file);
+  }, [fields.authType, storeProfileKeys]);
+
   function clearJumpFields(entryIndex: number | 'main') {
     const cleared = { jumpHost: '', jumpPort: '22', jumpUser: '', jumpAuthType: 'vault' as const, jumpPassword: '', jumpPrivateKey: '', jumpPrivateKeyName: '' };
     if (entryIndex === 'main') {
@@ -233,6 +293,24 @@ export function ConnectForm({
     if (allEntries.length === 0) {
       setError('Host is required.');
       return;
+    }
+
+    // Check if any pubkey entry is missing its private key — show modal if so
+    if (fields.authType === 'pubkey' && !fields.privateKey) {
+      const pending: Array<{ basename: string; keyType: 'main' | 'jump' }> = [];
+      const seen = new Set<string>();
+      for (const p of profilesRef.current) {
+        if (p.authType === 'pubkey' && p.privateKeyName && !p.privateKeyContent) {
+          if (!seen.has(p.privateKeyName)) { seen.add(p.privateKeyName); pending.push({ basename: p.privateKeyName, keyType: 'main' }); }
+        }
+        if (p.jumpAuthType === 'pubkey' && p.jumpPrivateKeyName && !p.jumpPrivateKeyContent) {
+          if (!seen.has(p.jumpPrivateKeyName!)) { seen.add(p.jumpPrivateKeyName!); pending.push({ basename: p.jumpPrivateKeyName!, keyType: 'jump' }); }
+        }
+      }
+      if (pending.length > 0) {
+        setKeyModalPending(pending);
+        return; // Connection will be re-triggered from modal via handleModalProceed
+      }
     }
 
     onStateChange('connecting');
@@ -609,7 +687,12 @@ export function ConnectForm({
 
       <div className="cf-container">
         {/* Form card */}
-        <div className="cf-card">
+        <div
+          className={`cf-card${dragOver ? ' cf-card--drag-over' : ''}`}
+          onDragOver={handleDragOver}
+          onDragLeave={handleDragLeave}
+          onDrop={handleDrop}
+        >
           <form id="cf-form" className="cf-form" onSubmit={handleSubmit} noValidate>
             <div className="cf-field">
               <label htmlFor="host">Host</label>
@@ -862,48 +945,6 @@ export function ConnectForm({
                 </button>
               </div>
             )}
-          {(() => {
-            const pending: Array<{ basename: string; keyType: 'main' | 'jump' }> = [];
-            const seen = new Set<string>();
-            for (const p of profiles) {
-              if (p.authType === 'pubkey' && p.privateKeyName && !p.privateKeyContent) {
-                if (!seen.has(p.privateKeyName)) { seen.add(p.privateKeyName); pending.push({ basename: p.privateKeyName, keyType: 'main' }); }
-              }
-              if (p.jumpAuthType === 'pubkey' && p.jumpPrivateKeyName && !p.jumpPrivateKeyContent) {
-                if (!seen.has(p.jumpPrivateKeyName)) { seen.add(p.jumpPrivateKeyName); pending.push({ basename: p.jumpPrivateKeyName, keyType: 'jump' }); }
-              }
-            }
-            if (pending.length === 0) return null;
-            return (
-              <div className="cf-key-pick-banner">
-                <div className="cf-key-pick-icon">🔑</div>
-                {pending.map(({ basename, keyType }) => {
-                  const inputKey = `${keyType}:${basename}`;
-                  return (
-                    <div key={inputKey} className="cf-key-pick-row">
-                      <input
-                        ref={(el) => sshKeyInputRefs.current.set(inputKey, el)}
-                        type="file"
-                        style={{ display: 'none' }}
-                        onChange={(e) => handlePendingKeyFileChange(basename, e)}
-                      />
-                      <span className="cf-key-pick-name">
-                        {basename}
-                        {keyType === 'jump' && <span className="cf-key-pick-jump"> (jump)</span>}
-                      </span>
-                      <button
-                        type="button"
-                        className="cf-key-pick-select-btn"
-                        onClick={() => sshKeyInputRefs.current.get(inputKey)?.click()}
-                      >
-                        Select
-                      </button>
-                    </div>
-                  );
-                })}
-              </div>
-            );
-          })()}
           {profiles.length > 0 && (
             <ul className="cf-profiles-list">
               {profiles.map((p) => (
@@ -981,6 +1022,55 @@ export function ConnectForm({
         </ul>
 
       </div>
+
+      {/* Key files required modal */}
+      {keyModalPending && (
+        <div
+          className="cf-modal-backdrop"
+          onClick={(e) => { if (e.target === e.currentTarget) handleModalCancel(); }}
+          onKeyDown={(e) => { if (e.key === 'Escape') handleModalCancel(); }}
+          tabIndex={-1}
+          role="dialog"
+          aria-modal="true"
+          aria-label="Key files required"
+        >
+          <div className="cf-modal">
+            <div className="cf-modal-header">
+              <span className="cf-modal-title">Key files required</span>
+              <button type="button" className="cf-modal-close" onClick={handleModalCancel} aria-label="Close">✕</button>
+            </div>
+            <div className="cf-modal-body">
+              {keyModalPending.map(({ basename, keyType }) => {
+                const inputKey = `${keyType}:${basename}`;
+                return (
+                  <div key={inputKey} className="cf-modal-key-row">
+                    <input
+                      ref={(el) => keyModalInputRefs.current.set(inputKey, el)}
+                      type="file"
+                      style={{ display: 'none' }}
+                      onChange={(e) => handleModalKeyFileChange(basename, keyType, e)}
+                    />
+                    <span className="cf-modal-key-name">
+                      {basename}
+                      {keyType === 'jump' && <span className="cf-key-pick-jump"> (jump)</span>}
+                    </span>
+                    <button
+                      type="button"
+                      className="cf-key-pick-select-btn"
+                      onClick={() => keyModalInputRefs.current.get(inputKey)?.click()}
+                    >
+                      Select
+                    </button>
+                  </div>
+                );
+              })}
+            </div>
+            <div className="cf-modal-footer">
+              <button type="button" className="cf-save-profile-cancel" onClick={handleModalCancel}>Cancel</button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

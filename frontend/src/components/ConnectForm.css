@@ -874,6 +874,92 @@ input[type='number'] { -moz-appearance: textfield; appearance: textfield; }
   font-size: 14px; color: #414868; font-style: italic;
 }
 
+/* ── Drag-over state ─────────────────────────────────────────────────── */
+.cf-card--drag-over {
+  border-color: #7aa2f7;
+  box-shadow: 0 0 0 3px rgba(122, 162, 247, 0.2), 0 12px 60px rgba(0, 0, 0, 0.55);
+  background: rgba(122, 162, 247, 0.04);
+  transition: border-color 0.1s, box-shadow 0.1s, background 0.1s;
+}
+
+/* ── Key files modal ─────────────────────────────────────────────────── */
+.cf-modal-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.65);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 500;
+}
+
+.cf-modal {
+  background: #1e2030;
+  border: 1px solid #414868;
+  border-radius: 14px;
+  padding: 28px 32px;
+  min-width: 360px;
+  max-width: 480px;
+  box-shadow: 0 16px 64px rgba(0, 0, 0, 0.7);
+}
+
+.cf-modal-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 20px;
+}
+
+.cf-modal-title {
+  font-size: 16px;
+  font-weight: 700;
+  color: #c0caf5;
+}
+
+.cf-modal-close {
+  background: transparent;
+  border: none;
+  color: #565f89;
+  font-size: 16px;
+  cursor: pointer;
+  padding: 4px 8px;
+  border-radius: 4px;
+  transition: color 0.12s;
+}
+.cf-modal-close:hover { color: #c0caf5; }
+
+.cf-modal-body {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin-bottom: 20px;
+}
+
+.cf-modal-key-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 14px;
+  background: rgba(26, 27, 38, 0.6);
+  border: 1px solid #2a2c3d;
+  border-radius: 8px;
+}
+
+.cf-modal-key-name {
+  flex: 1;
+  font-size: 13px;
+  color: #ff9e64;
+  font-family: 'Menlo', 'Monaco', 'Courier New', monospace;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.cf-modal-footer {
+  display: flex;
+  justify-content: flex-end;
+}
+
 /* ── Responsive: スマホは固定幅を解除して全幅 ────────────────────────── */
 @media (max-width: 600px) {
   .cf-container {

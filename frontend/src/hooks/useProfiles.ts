@@ -1,16 +1,52 @@
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useEffect } from 'react';
 import type { Profile, AuthType } from '../types';
 import { readJSON, writeJSON } from '../utils/storage';
 import { STORAGE_KEYS, MAX_PROFILES } from '../constants';
+import { encryptText, decryptText } from '../utils/crypto';
+
+const ENCRYPTED_PREFIX = 'enc:';
+
+function isEncrypted(value: string): boolean {
+  return value.startsWith(ENCRYPTED_PREFIX);
+}
+
+function isPlainKey(value: string): boolean {
+  return value.includes('-----BEGIN');
+}
+
+async function encryptKeyContent(value: string): Promise<string> {
+  if (!value) return value;
+  if (isEncrypted(value)) return value; // already encrypted
+  const cipher = await encryptText(value);
+  return ENCRYPTED_PREFIX + cipher;
+}
+
+async function encryptProfileKeys(p: Profile): Promise<Profile> {
+  const result = { ...p };
+  if (p.privateKeyContent) {
+    result.privateKeyContent = await encryptKeyContent(p.privateKeyContent);
+  }
+  if (p.jumpPrivateKeyContent) {
+    result.jumpPrivateKeyContent = await encryptKeyContent(p.jumpPrivateKeyContent);
+  }
+  return result;
+}
 
 function loadFromStorage(): Profile[] {
   const raw = readJSON<Profile[]>(STORAGE_KEYS.PROFILES, []);
   // Default authType to 'vault' for old entries that lack it
-  return raw.map((p) => ({ ...p, authType: p.authType ?? 'vault' }));
+  // Strip key content from in-memory state initially; decryption happens async
+  return raw.map((p) => ({
+    ...p,
+    authType: p.authType ?? 'vault',
+    privateKeyContent: p.privateKeyContent ? '' : undefined,
+    jumpPrivateKeyContent: p.jumpPrivateKeyContent ? '' : undefined,
+  }));
 }
 
-function saveToStorage(profiles: Profile[]): void {
-  writeJSON(STORAGE_KEYS.PROFILES, profiles);
+async function saveToStorage(profiles: Profile[]): Promise<void> {
+  const encrypted = await Promise.all(profiles.map(encryptProfileKeys));
+  writeJSON(STORAGE_KEYS.PROFILES, encrypted);
 }
 
 function generateId(): string {
@@ -51,6 +87,68 @@ interface UseProfilesReturn {
 export function useProfiles(): UseProfilesReturn {
   const [profiles, setProfiles] = useState<Profile[]>(loadFromStorage);
 
+  // Async-decrypt key content from localStorage on mount (or after profile changes)
+  useEffect(() => {
+    const raw = readJSON<Profile[]>(STORAGE_KEYS.PROFILES, []);
+    const profilesWithKeys = raw.filter(
+      (p) => (p.privateKeyContent && isEncrypted(p.privateKeyContent)) ||
+             (p.jumpPrivateKeyContent && isEncrypted(p.jumpPrivateKeyContent)) ||
+             (p.privateKeyContent && isPlainKey(p.privateKeyContent)) ||
+             (p.jumpPrivateKeyContent && isPlainKey(p.jumpPrivateKeyContent))
+    );
+    if (profilesWithKeys.length === 0) return;
+
+    let cancelled = false;
+    (async () => {
+      const decrypted = await Promise.all(
+        profilesWithKeys.map(async (p) => {
+          let privateKeyContent = p.privateKeyContent ?? '';
+          let jumpPrivateKeyContent = p.jumpPrivateKeyContent ?? '';
+
+          if (privateKeyContent) {
+            if (isEncrypted(privateKeyContent)) {
+              const plain = await decryptText(privateKeyContent.slice(ENCRYPTED_PREFIX.length));
+              if (plain !== null) {
+                privateKeyContent = plain;
+              } else {
+                // Stale key (tab was closed); clear content
+                privateKeyContent = '';
+              }
+            }
+            // plaintext — will be re-saved encrypted on next write
+          }
+          if (jumpPrivateKeyContent) {
+            if (isEncrypted(jumpPrivateKeyContent)) {
+              const plain = await decryptText(jumpPrivateKeyContent.slice(ENCRYPTED_PREFIX.length));
+              if (plain !== null) {
+                jumpPrivateKeyContent = plain;
+              } else {
+                jumpPrivateKeyContent = '';
+              }
+            }
+          }
+          return { id: p.id, privateKeyContent, jumpPrivateKeyContent };
+        })
+      );
+
+      if (cancelled) return;
+      setProfiles((prev) =>
+        prev.map((p) => {
+          const d = decrypted.find((x) => x.id === p.id);
+          if (!d) return p;
+          return {
+            ...p,
+            ...(d.privateKeyContent ? { privateKeyContent: d.privateKeyContent } : {}),
+            ...(d.jumpPrivateKeyContent ? { jumpPrivateKeyContent: d.jumpPrivateKeyContent } : {}),
+          };
+        })
+      );
+    })();
+    return () => { cancelled = true; };
+    // Run once on mount only
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   const saveProfile = useCallback((name: string, host: string, port: number, user: string, authType: AuthType, jump?: JumpParams, keys?: KeyParams) => {
     const newProfile: Profile = {
       id: generateId(),
@@ -71,7 +169,7 @@ export function useProfiles(): UseProfilesReturn {
     };
     setProfiles((prev) => {
       const updated = [newProfile, ...prev].slice(0, MAX_PROFILES);
-      saveToStorage(updated);
+      saveToStorage(updated); // fire-and-forget async encrypt+save
       return updated;
     });
   }, []);
