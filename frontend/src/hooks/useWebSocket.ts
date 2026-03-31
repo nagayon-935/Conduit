@@ -1,5 +1,5 @@
 import { useRef, useState, useCallback, useEffect } from 'react';
-import type { Terminal } from '@xterm/xterm';
+import type { Terminal, IDisposable } from '@xterm/xterm';
 import type { FitAddon } from '@xterm/addon-fit';
 import type { WsControlMessage } from '../types';
 import {
@@ -38,6 +38,8 @@ export function useWebSocket(options: UseWebSocketOptions): UseWebSocketReturn {
   const reconnectAttemptsRef = useRef(0);
   const heartbeatIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const reconnectTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const onDataDisposableRef = useRef<IDisposable | null>(null);
+  const onResizeDisposableRef = useRef<IDisposable | null>(null);
 
   // Keep latest terminal/fitAddon in refs so WebSocket callbacks use current values
   const terminalRef = useRef<Terminal | null>(terminal);
@@ -89,6 +91,27 @@ export function useWebSocket(options: UseWebSocketOptions): UseWebSocketReturn {
     ws.binaryType = 'arraybuffer';
     wsRef.current = ws;
 
+    // Wire up terminal input → WebSocket immediately (before onopen) so that
+    // keystrokes typed while the connection is opening are not lost.
+    // Use wsRef.current so the closure always targets the active connection.
+    // Dispose any previous listeners first to avoid accumulation on reconnect.
+    onDataDisposableRef.current?.dispose();
+    onResizeDisposableRef.current?.dispose();
+    const term = terminalRef.current;
+    if (term) {
+      onDataDisposableRef.current = term.onData((data: string) => {
+        if (wsRef.current?.readyState === WebSocket.OPEN) {
+          wsRef.current.send(data);
+        }
+      });
+      onResizeDisposableRef.current = term.onResize(({ cols, rows }) => {
+        if (wsRef.current?.readyState === WebSocket.OPEN) {
+          const resizeMsg: WsControlMessage = { type: 'resize', cols, rows };
+          wsRef.current.send(JSON.stringify(resizeMsg));
+        }
+      });
+    }
+
     ws.onopen = () => {
       reconnectAttemptsRef.current = 0;
       setIsConnected(true);
@@ -99,29 +122,12 @@ export function useWebSocket(options: UseWebSocketOptions): UseWebSocketReturn {
       }
 
       // Send initial terminal size
-      const term = terminalRef.current;
       const fit = fitAddonRef.current;
-      if (term && fit) {
+      const currentTerm = terminalRef.current;
+      if (currentTerm && fit) {
         fit.fit();
-        const resizeMsg: WsControlMessage = { type: 'resize', cols: term.cols, rows: term.rows };
+        const resizeMsg: WsControlMessage = { type: 'resize', cols: currentTerm.cols, rows: currentTerm.rows };
         ws.send(JSON.stringify(resizeMsg));
-      }
-
-      // Wire up terminal input → WebSocket
-      if (term) {
-        term.onData((data: string) => {
-          if (ws.readyState === WebSocket.OPEN) {
-            ws.send(data);
-          }
-        });
-
-        // Wire up terminal resize → WebSocket
-        term.onResize(({ cols, rows }) => {
-          if (ws.readyState === WebSocket.OPEN) {
-            const resizeMsg: WsControlMessage = { type: 'resize', cols, rows };
-            ws.send(JSON.stringify(resizeMsg));
-          }
-        });
       }
     };
 
@@ -222,6 +228,8 @@ export function useWebSocket(options: UseWebSocketOptions): UseWebSocketReturn {
       isIntentionalCloseRef.current = true;
       clearHeartbeat();
       clearReconnectTimeout();
+      onDataDisposableRef.current?.dispose();
+      onResizeDisposableRef.current?.dispose();
       if (wsRef.current) {
         wsRef.current.onclose = null;
         wsRef.current.close();

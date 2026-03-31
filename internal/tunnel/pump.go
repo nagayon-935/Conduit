@@ -146,7 +146,10 @@ func handleControlMessage(ws *session.SafeConn, sess *session.Session, msg []byt
 			slog.Warn("handleControlMessage: resize PTY error", "error", err)
 		}
 	default:
-		slog.Warn("handleControlMessage: unknown message type", "type", frame.Type)
+		// Unknown or unrecognised JSON frame — treat as raw terminal input.
+		// This handles the edge case where the user's input happens to be
+		// valid JSON (e.g. "null", "{}", …) so it shouldn't be silently dropped.
+		DrainOrDrop(sess.FromClient, msg, cfg.BackpressureTimeout)
 	}
 }
 
