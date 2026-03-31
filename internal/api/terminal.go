@@ -6,7 +6,6 @@ import (
 	"log/slog"
 	"net/http"
 
-	"github.com/gorilla/websocket"
 	"github.com/nagayon-935/conduit/internal/session"
 	"github.com/nagayon-935/conduit/internal/tunnel"
 )
@@ -31,7 +30,9 @@ func (h *Handler) handleTerminal(w http.ResponseWriter, r *http.Request) {
 	sess, removedCh, err := h.sessions.Attach(token, connID, ws)
 	if err != nil {
 		slog.Warn("session attach failed", "token", token, "error", err)
-		sendWSError(ws, err.Error())
+		// Send exit (not error) so the client stops reconnecting.
+		// A terminated/missing session is a permanent condition.
+		sendWSExit(session.NewSafeConn(ws))
 		return
 	}
 
@@ -54,7 +55,14 @@ func (h *Handler) handleTerminal(w http.ResponseWriter, r *http.Request) {
 	case <-sess.Done():
 		sendWSExit(safeWS)
 	case <-removedCh:
-		// writePump already called RemoveWebSocket; grace period may have started.
+		// writePump already called RemoveWebSocket.
+		// If the session also terminated (e.g. SSH exit), send exit so the
+		// client doesn't attempt to reconnect.
+		select {
+		case <-sess.Done():
+			sendWSExit(safeWS)
+		default:
+		}
 	}
 
 	slog.Info("terminal disconnected", "token", token, "connID", connID)
@@ -78,12 +86,3 @@ func sendWSExit(ws *session.SafeConn) {
 	}
 }
 
-func sendWSError(ws *websocket.Conn, message string) {
-	type errMsg struct {
-		Type    string `json:"type"`
-		Message string `json:"message"`
-	}
-	if err := ws.WriteJSON(errMsg{Type: "error", Message: message}); err != nil {
-		slog.Warn("sendWSError: write failed", "error", err)
-	}
-}
