@@ -114,9 +114,12 @@ export function parseSshConfig(text: string): SshConfigHost[] {
 
       if (key.toLowerCase() !== 'proxyjump') continue;
 
+      // ProxyJump は最初の1つだけ使う
+      if (jumpHost) continue;
+
       // カンマ区切りの最初のホストのみ使用（多段 jump は未対応）
       const firstHop = val.trim().split(',')[0].trim();
-      if (!firstHop || firstHop.toLowerCase() === 'none') break;
+      if (!firstHop || firstHop.toLowerCase() === 'none') continue;
 
       let jh = firstHop;
       let jp = 22;
@@ -148,7 +151,8 @@ export function parseSshConfig(text: string): SshConfigHost[] {
       jumpHost = jh;
       jumpPort = jp;
       jumpUser = ju;
-      break;
+      // ProxyJump は最初の1つだけ使う。ただし break すると後続の LocalForward が
+      // 読まれなくなるため、フラグで重複処理を防ぎつつループを継続する。
     }
 
     results.push({
