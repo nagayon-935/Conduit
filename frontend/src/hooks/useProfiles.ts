@@ -73,6 +73,7 @@ interface ImportEntry {
   identityFile?: string;
   jumpHost?: string; jumpPort?: number; jumpUser?: string;
   jumpIdentityFile?: string;
+  localForwards?: { localPort: number; remoteHost: string; remotePort: number }[];
 }
 
 interface UseProfilesReturn {
@@ -244,6 +245,7 @@ export function useProfiles(): UseProfilesReturn {
                   jumpAuthType: resolvedJumpAuthType,
                   ...(jumpKeyBasename && !p.jumpPrivateKeyContent ? { jumpPrivateKeyName: jumpKeyBasename } : {}),
                 } : {}),
+                ...(incoming.localForwards ? { localForwards: incoming.localForwards } : {}),
               };
             })
           : [...prev];
@@ -274,6 +276,7 @@ export function useProfiles(): UseProfilesReturn {
                 jumpAuthType: resolvedJumpAuthType,
                 ...(jumpKeyBasename ? { jumpPrivateKeyName: jumpKeyBasename } : {}),
               } : {}),
+              ...(e.localForwards ? { localForwards: e.localForwards } : {}),
             });
             added++;
           });

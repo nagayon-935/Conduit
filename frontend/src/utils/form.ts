@@ -1,4 +1,4 @@
-import type { AuthType, ConnectRequest, Profile } from '../types';
+import type { AuthType, ConnectRequest, LocalForward, Profile } from '../types';
 
 /** Shared form field shape used by ConnectForm and NewConnectionOverlay. */
 export interface FormFields {
@@ -49,7 +49,7 @@ export function validateForm(fields: FormFields): string | null {
 }
 
 /** Build a ConnectRequest from form fields. */
-export function buildConnectRequest(entry: FormFields): ConnectRequest {
+export function buildConnectRequest(entry: FormFields, localForwards?: LocalForward[]): ConnectRequest {
   const port = parseInt(entry.port, 10);
   const req: ConnectRequest = { host: entry.host.trim(), port, user: entry.user.trim(), auth_type: entry.authType };
   if (entry.authType === 'password') req.password = entry.password;
@@ -62,6 +62,14 @@ export function buildConnectRequest(entry: FormFields): ConnectRequest {
     req.jump_auth_type = entry.jumpAuthType;
     if (entry.jumpAuthType === 'password') req.jump_password = entry.jumpPassword;
     if (entry.jumpAuthType === 'pubkey') req.jump_private_key = entry.jumpPrivateKey;
+  }
+
+  if (localForwards && localForwards.length > 0) {
+    req.local_forwards = localForwards.map((lf) => ({
+      local_port: lf.localPort,
+      remote_host: lf.remoteHost,
+      remote_port: lf.remotePort,
+    }));
   }
 
   return req;

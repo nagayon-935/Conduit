@@ -16,7 +16,7 @@ func testConfig() *config.Config {
 
 // newTestSession builds a minimal Session with the given token (no real SSH client/session).
 func newTestSession(token string) *Session {
-	return NewSession(token, "", 0, "", nil, nil, nil, nil, 15*time.Minute)
+	return NewSession(token, "", 0, "", nil, nil, nil, nil, 15*time.Minute, nil)
 }
 
 func TestSessionManager_CreateAndGet(t *testing.T) {

@@ -255,7 +255,7 @@ func TestStartPumps_SSHToWebSocket(t *testing.T) {
 	stdoutRead, stdoutWrite := io.Pipe()
 
 	// NewSession wires up the done channel and buffered channels.
-	realSess := session.NewSession("pump-test", "", 0, "", nil, nil, nil, stdoutRead, 15*time.Minute)
+	realSess := session.NewSession("pump-test", "", 0, "", nil, nil, nil, stdoutRead, 15*time.Minute, nil)
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
@@ -292,7 +292,7 @@ func TestStartPumps_WebSocketToSSH(t *testing.T) {
 	stdinRead, stdinWrite := io.Pipe()
 
 	// Build session with the pipe write-end as Stdin.
-	realSess := session.NewSession("forwarder-test", "", 0, "", nil, nil, stdinWrite, nil, 15*time.Minute)
+	realSess := session.NewSession("forwarder-test", "", 0, "", nil, nil, stdinWrite, nil, 15*time.Minute, nil)
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
@@ -349,7 +349,7 @@ func TestStartStdinForwarder_StopsOnContextCancel(t *testing.T) {
 	t.Parallel()
 
 	_, stdinWrite := io.Pipe()
-	realSess := session.NewSession("cancel-test", "", 0, "", nil, nil, stdinWrite, nil, 15*time.Minute)
+	realSess := session.NewSession("cancel-test", "", 0, "", nil, nil, stdinWrite, nil, 15*time.Minute, nil)
 
 	ctx, cancel := context.WithCancel(context.Background())
 	StartStdinForwarder(ctx, realSess)
@@ -368,7 +368,7 @@ func TestStartStdinForwarder_StopsOnSessionClose(t *testing.T) {
 	t.Parallel()
 
 	_, stdinWrite := io.Pipe()
-	realSess := session.NewSession("sess-close-test", "", 0, "", nil, nil, stdinWrite, nil, 15*time.Minute)
+	realSess := session.NewSession("sess-close-test", "", 0, "", nil, nil, stdinWrite, nil, 15*time.Minute, nil)
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
@@ -405,7 +405,7 @@ func TestReadPump(t *testing.T) {
 	}
 	defer ws.Close()
 
-	sess := session.NewSession("test", "host", 22, "user", nil, nil, nil, nil, 15*time.Minute)
+	sess := session.NewSession("test", "host", 22, "user", nil, nil, nil, nil, 15*time.Minute, nil)
 	sess.AddWebSocket("conn1", ws)
 
 	ctx, cancel := context.WithCancel(context.Background())
@@ -448,7 +448,7 @@ func TestWritePumpAndControlMessage(t *testing.T) {
 	<-done
 	// serverWs is now set
 
-	sess := session.NewSession("test", "host", 22, "user", nil, nil, nil, nil, 15*time.Minute)
+	sess := session.NewSession("test", "host", 22, "user", nil, nil, nil, nil, 15*time.Minute, nil)
 	cfg := DefaultPumpConfig()
 	sess.AddWebSocket("conn1", serverWs)
 	safeWS := sess.GetSafeConn("conn1")
@@ -489,7 +489,7 @@ func TestWritePumpAndControlMessage(t *testing.T) {
 
 func TestStartSessionPumps(t *testing.T) {
 	// Simple smoke test to cover the function
-	sess := session.NewSession("test", "host", 22, "user", nil, nil, nil, bytes.NewBuffer(nil), 15*time.Minute)
+	sess := session.NewSession("test", "host", 22, "user", nil, nil, nil, bytes.NewBuffer(nil), 15*time.Minute, nil)
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 	
@@ -513,7 +513,7 @@ func TestStartConnectionPump(t *testing.T) {
 	ws, _, _ := websocket.DefaultDialer.Dial(wsURL, nil)
 	if ws != nil {
 		defer ws.Close()
-		sess := session.NewSession("test", "host", 22, "user", nil, nil, nil, nil, 15*time.Minute)
+		sess := session.NewSession("test", "host", 22, "user", nil, nil, nil, nil, 15*time.Minute, nil)
 		StartConnectionPump("conn1", ws, sess, DefaultPumpConfig())
 		time.Sleep(50 * time.Millisecond)
 	}

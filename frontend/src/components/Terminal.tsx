@@ -2,6 +2,7 @@ import { useEffect, useCallback, useRef, useState } from 'react';
 import { useTerminal } from '../hooks/useTerminal';
 import { useWebSocket } from '../hooks/useWebSocket';
 import { themes } from '../themes';
+import type { LocalForward } from '../types';
 import '@xterm/xterm/css/xterm.css';
 import './Terminal.css';
 
@@ -12,6 +13,8 @@ interface TerminalProps {
   user: string;
   expiresAt: string;
   onDisconnect: () => void;
+  localForwards?: LocalForward[];
+  forwardBaseUrl?: string;
 }
 
 function formatReconnectDeadline(expiresAt: string): string {
@@ -23,7 +26,7 @@ function formatReconnectDeadline(expiresAt: string): string {
   }
 }
 
-export function Terminal({ sessionToken, host, port, user, expiresAt, onDisconnect }: TerminalProps) {
+export function Terminal({ sessionToken, host, port, user, expiresAt, onDisconnect, localForwards, forwardBaseUrl }: TerminalProps) {
   const {
     terminalRef,
     terminal,
@@ -175,6 +178,27 @@ export function Terminal({ sessionToken, host, port, user, expiresAt, onDisconne
                   Reconnect by: {formatReconnectDeadline(expiresAt)}
                 </span>
               </>
+            )}
+            {forwardBaseUrl && localForwards && localForwards.length > 0 && (
+              <span className="status-forwards">
+                {localForwards.map((lf) => {
+                  const url = `${forwardBaseUrl}/${lf.remoteHost}/${lf.remotePort}/`;
+                  const label = `${lf.remoteHost}:${lf.remotePort}`;
+                  return (
+                    <a
+                      key={`${lf.remoteHost}:${lf.remotePort}`}
+                      href={isConnected ? url : undefined}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className={`forward-link${isConnected ? '' : ' forward-link--disconnected'}`}
+                      title={isConnected ? `Open ${label} via SSH tunnel` : 'Session disconnected'}
+                      onClick={isConnected ? undefined : (e) => e.preventDefault()}
+                    >
+                      [{label}]
+                    </a>
+                  );
+                })}
+              </span>
             )}
           </div>
         </div>

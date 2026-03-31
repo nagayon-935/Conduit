@@ -19,6 +19,13 @@ const (
 	maxPort       = 65535
 )
 
+// LocalForwardRequest describes one local port forward entry in the connect request.
+type LocalForwardRequest struct {
+	LocalPort  int    `json:"local_port"`
+	RemoteHost string `json:"remote_host"`
+	RemotePort int    `json:"remote_port"`
+}
+
 // ConnectRequest is the JSON body for POST /api/connect.
 type ConnectRequest struct {
 	Host       string `json:"host"`
@@ -35,13 +42,17 @@ type ConnectRequest struct {
 	JumpAuthType   string `json:"jump_auth_type,omitempty"` // "vault" | "password" | "pubkey"
 	JumpPassword   string `json:"jump_password,omitempty"`
 	JumpPrivateKey string `json:"jump_private_key,omitempty"`
+
+	// LocalForwards lists SSH local port forwarding rules.
+	LocalForwards []LocalForwardRequest `json:"local_forwards,omitempty"`
 }
 
 // ConnectResponse is returned on a successful connection.
 type ConnectResponse struct {
-	SessionToken string `json:"session_token"`
-	ExpiresAt    string `json:"expires_at"`
-	Message      string `json:"message"`
+	SessionToken   string `json:"session_token"`
+	ExpiresAt      string `json:"expires_at"`
+	Message        string `json:"message"`
+	ForwardBaseURL string `json:"forward_base_url,omitempty"`
 }
 
 // handleConnect implements POST /api/connect.
@@ -163,7 +174,17 @@ func (h *Handler) handleConnect(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	sess := session.NewSession(token, req.Host, req.Port, req.User, sshClient, sshSess, stdin, stdout, h.config.GracePeriod)
+	// Convert local_forwards from request into session ForwardRules.
+	allowedForwards := make([]session.ForwardRule, 0, len(req.LocalForwards))
+	for _, lf := range req.LocalForwards {
+		allowedForwards = append(allowedForwards, session.ForwardRule{
+			LocalPort:  lf.LocalPort,
+			RemoteHost: lf.RemoteHost,
+			RemotePort: lf.RemotePort,
+		})
+	}
+
+	sess := session.NewSession(token, req.Host, req.Port, req.User, sshClient, sshSess, stdin, stdout, h.config.GracePeriod, allowedForwards)
 	if err := h.sessions.Create(sess); err != nil {
 		slog.Error("session creation failed", "error", err)
 		sess.Close()
@@ -186,10 +207,16 @@ func (h *Handler) handleConnect(w http.ResponseWriter, r *http.Request) {
 
 	slog.Info("session created successfully", "token", token, "host", req.Host)
 
+	var forwardBaseURL string
+	if len(req.LocalForwards) > 0 {
+		forwardBaseURL = "/api/forward/" + token
+	}
+
 	writeJSON(w, http.StatusCreated, ConnectResponse{
-		SessionToken: token,
-		ExpiresAt:    sess.ExpiresAt.UTC().Format(timeFormatUTC),
-		Message:      fmt.Sprintf("SSH session established to %s:%d", req.Host, req.Port),
+		SessionToken:   token,
+		ExpiresAt:      sess.ExpiresAt.UTC().Format(timeFormatUTC),
+		Message:        fmt.Sprintf("SSH session established to %s:%d", req.Host, req.Port),
+		ForwardBaseURL: forwardBaseURL,
 	})
 }
 

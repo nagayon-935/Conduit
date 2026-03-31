@@ -5,6 +5,7 @@ import (
 	"log/slog"
 	"net/http"
 	"slices"
+	"strings"
 
 	"github.com/gorilla/websocket"
 	"github.com/nagayon-935/conduit/internal/config"
@@ -62,7 +63,19 @@ func (h *Handler) Routes() http.Handler {
 	mux.HandleFunc("GET /api/sessions", h.handleListSessions)
 	mux.HandleFunc("DELETE /api/sessions/{token}", h.handleKillSession)
 	mux.HandleFunc("GET /api/logs", h.handleListLogs)
-	return corsMiddleware(h.config.AllowedOrigins)(loggingMiddleware(mux))
+
+	// Forward routes are registered without loggingMiddleware because
+	// WebSocket hijacking is incompatible with the ResponseWriter wrapper.
+	logged := corsMiddleware(h.config.AllowedOrigins)(loggingMiddleware(mux))
+
+	// Wrap the logged handler so that /api/forward/ requests bypass loggingMiddleware.
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if strings.HasPrefix(r.URL.Path, "/api/forward/") {
+			corsMiddleware(h.config.AllowedOrigins)(http.HandlerFunc(h.handleForward)).ServeHTTP(w, r)
+			return
+		}
+		logged.ServeHTTP(w, r)
+	})
 }
 
 // handleHealth is a simple liveness probe.
