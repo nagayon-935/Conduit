@@ -69,6 +69,7 @@ export function buildConnectRequest(entry: FormFields, localForwards?: LocalForw
       local_port: lf.localPort,
       remote_host: lf.remoteHost,
       remote_port: lf.remotePort,
+      ...(lf.scheme ? { scheme: lf.scheme } : {}),
     }));
   }
 

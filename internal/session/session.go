@@ -17,6 +17,7 @@ type ForwardRule struct {
 	LocalPort  int
 	RemoteHost string
 	RemotePort int
+	Scheme     string // "http" or "https"
 }
 
 const (
@@ -105,13 +106,24 @@ func NewSession(token, host string, port int, user string, client *ssh.Client, s
 // IsForwardAllowed returns true if the given remote host and port are allowed
 // by the session's forward rules. Host matching is case-insensitive.
 func (s *Session) IsForwardAllowed(remoteHost string, remotePort int) bool {
+	_, ok := s.ForwardScheme(remoteHost, remotePort)
+	return ok
+}
+
+// ForwardScheme returns the URL scheme ("http" or "https") for the matching
+// forward rule, and true if such a rule exists.
+func (s *Session) ForwardScheme(remoteHost string, remotePort int) (string, bool) {
 	lowerHost := strings.ToLower(remoteHost)
 	for _, rule := range s.AllowedForwards {
 		if strings.ToLower(rule.RemoteHost) == lowerHost && rule.RemotePort == remotePort {
-			return true
+			scheme := rule.Scheme
+			if scheme == "" {
+				scheme = "http"
+			}
+			return scheme, true
 		}
 	}
-	return false
+	return "", false
 }
 
 func (s *Session) Close() {

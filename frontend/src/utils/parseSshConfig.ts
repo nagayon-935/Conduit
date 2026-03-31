@@ -11,7 +11,7 @@ export interface SshConfigHost {
   jumpUser?: string;
   jumpIdentityFile?: string;
   // LocalForward entries
-  localForwards?: { localPort: number; remoteHost: string; remotePort: number }[];
+  localForwards?: { localPort: number; remoteHost: string; remotePort: number; scheme: string }[];
 }
 
 /** 1 ブロック分の生設定 */
@@ -83,7 +83,7 @@ export function parseSshConfig(text: string): SshConfigHost[] {
     let jumpPort: number | undefined;
     let jumpUser: string | undefined;
     let jumpIdentityFile: string | undefined;
-    const localForwards: { localPort: number; remoteHost: string; remotePort: number }[] = [];
+    const localForwards: { localPort: number; remoteHost: string; remotePort: number; scheme: string }[] = [];
 
     for (const line of lines.slice(1)) {
       const m = line.match(/^\s*(\w+)\s+(.+)$/);
@@ -102,10 +102,20 @@ export function parseSshConfig(text: string): SshConfigHost[] {
           const remotePart = parts[1];
           const lastColon = remotePart.lastIndexOf(':');
           if (!isNaN(localPort) && lastColon !== -1) {
-            const remoteHost = remotePart.slice(0, lastColon);
+            let remoteHost = remotePart.slice(0, lastColon);
             const remotePort = parseInt(remotePart.slice(lastColon + 1), 10);
             if (remoteHost && !isNaN(remotePort)) {
-              localForwards.push({ localPort, remoteHost, remotePort });
+              // Detect HTTPS: explicit https:// prefix or well-known port 443.
+              let scheme = 'http';
+              if (remoteHost.startsWith('https://')) {
+                scheme = 'https';
+                remoteHost = remoteHost.slice('https://'.length);
+              } else if (remoteHost.startsWith('http://')) {
+                remoteHost = remoteHost.slice('http://'.length);
+              } else if (remotePort === 443) {
+                scheme = 'https';
+              }
+              localForwards.push({ localPort, remoteHost, remotePort, scheme });
             }
           }
         }

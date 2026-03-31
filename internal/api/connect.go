@@ -24,6 +24,7 @@ type LocalForwardRequest struct {
 	LocalPort  int    `json:"local_port"`
 	RemoteHost string `json:"remote_host"`
 	RemotePort int    `json:"remote_port"`
+	Scheme     string `json:"scheme,omitempty"` // "http" or "https"; defaults to "http"
 }
 
 // ConnectRequest is the JSON body for POST /api/connect.
@@ -177,10 +178,15 @@ func (h *Handler) handleConnect(w http.ResponseWriter, r *http.Request) {
 	// Convert local_forwards from request into session ForwardRules.
 	allowedForwards := make([]session.ForwardRule, 0, len(req.LocalForwards))
 	for _, lf := range req.LocalForwards {
+		scheme := lf.Scheme
+		if scheme == "" {
+			scheme = "http"
+		}
 		allowedForwards = append(allowedForwards, session.ForwardRule{
 			LocalPort:  lf.LocalPort,
 			RemoteHost: lf.RemoteHost,
 			RemotePort: lf.RemotePort,
+			Scheme:     scheme,
 		})
 	}
 

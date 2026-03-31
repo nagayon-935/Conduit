@@ -15,13 +15,14 @@ export interface ConnectRequest {
   jump_password?: string;
   jump_private_key?: string;
   // Local port forwards
-  local_forwards?: Array<{ local_port: number; remote_host: string; remote_port: number }>;
+  local_forwards?: Array<{ local_port: number; remote_host: string; remote_port: number; scheme?: string }>;
 }
 
 export interface LocalForward {
   localPort: number;
   remoteHost: string;
   remotePort: number;
+  scheme?: string; // "http" or "https"; defaults to "http"
 }
 
 export interface ConnectResponse {

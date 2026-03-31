@@ -2,6 +2,7 @@ package api
 
 import (
 	"context"
+	"crypto/tls"
 	"fmt"
 	"io"
 	"net"
@@ -54,8 +55,9 @@ func (h *Handler) handleForward(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Check forward policy.
-	if !sess.IsForwardAllowed(remoteHost, remotePort) {
+	// Check forward policy and get the target scheme.
+	scheme, allowed := sess.ForwardScheme(remoteHost, remotePort)
+	if !allowed {
 		http.Error(w, "forward not allowed", http.StatusForbidden)
 		return
 	}
@@ -103,10 +105,23 @@ func (h *Handler) handleForward(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Plain HTTP reverse proxy path.
+	// Plain HTTP/HTTPS reverse proxy path.
+	transport := &http.Transport{
+		DialContext: func(_ context.Context, _, _ string) (net.Conn, error) {
+			return sess.SSHClient.Dial("tcp", addr)
+		},
+	}
+	if scheme == "https" {
+		transport.TLSClientConfig = &tls.Config{
+			// The remote end is accessed via SSH tunnel; skip cert verification
+			// since the host's name may not match any issued certificate.
+			InsecureSkipVerify: true, //nolint:gosec
+			ServerName:         remoteHost,
+		}
+	}
 	proxy := &httputil.ReverseProxy{
 		Director: func(req *http.Request) {
-			req.URL.Scheme = "http"
+			req.URL.Scheme = scheme
 			req.URL.Host = addr
 			req.URL.Path = remainingPath
 			if req.URL.RawQuery != "" {
@@ -114,11 +129,7 @@ func (h *Handler) handleForward(w http.ResponseWriter, r *http.Request) {
 			}
 			req.Host = addr
 		},
-		Transport: &http.Transport{
-			DialContext: func(_ context.Context, _, _ string) (net.Conn, error) {
-				return sess.SSHClient.Dial("tcp", addr)
-			},
-		},
+		Transport: transport,
 		ModifyResponse: func(resp *http.Response) error {
 			loc := resp.Header.Get("Location")
 			if loc == "" {
