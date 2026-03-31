@@ -133,8 +133,9 @@ export function useProfiles(): UseProfilesReturn {
       );
 
       if (cancelled) return;
-      setProfiles((prev) =>
-        prev.map((p) => {
+      setProfiles((prev) => {
+        // まず復号済みの内容をプロファイルに反映
+        const withDecrypted = prev.map((p) => {
           const d = decrypted.find((x) => x.id === p.id);
           if (!d) return p;
           return {
@@ -142,8 +143,25 @@ export function useProfiles(): UseProfilesReturn {
             ...(d.privateKeyContent ? { privateKeyContent: d.privateKeyContent } : {}),
             ...(d.jumpPrivateKeyContent ? { jumpPrivateKeyContent: d.jumpPrivateKeyContent } : {}),
           };
-        })
-      );
+        });
+        // 同一ファイル名の鍵を持つプロファイル間でコンテンツを伝播
+        return withDecrypted.map((p) => {
+          let patch: Partial<Profile> = {};
+          if (p.privateKeyName && !p.privateKeyContent) {
+            const donor = withDecrypted.find(
+              (q) => q.id !== p.id && q.privateKeyName === p.privateKeyName && q.privateKeyContent
+            );
+            if (donor) patch = { ...patch, privateKeyContent: donor.privateKeyContent };
+          }
+          if (p.jumpPrivateKeyName && !p.jumpPrivateKeyContent) {
+            const donor = withDecrypted.find(
+              (q) => q.id !== p.id && q.jumpPrivateKeyName === p.jumpPrivateKeyName && q.jumpPrivateKeyContent
+            );
+            if (donor) patch = { ...patch, jumpPrivateKeyContent: donor.jumpPrivateKeyContent };
+          }
+          return Object.keys(patch).length > 0 ? { ...p, ...patch } : p;
+        });
+      });
     })();
     return () => { cancelled = true; };
     // Run once on mount only
@@ -188,16 +206,38 @@ export function useProfiles(): UseProfilesReturn {
     [profiles],
   );
 
-  // 鍵ファイル選択時にプロファイルへ内容を保存する
+  // 鍵ファイル選択時にプロファイルへ内容を保存する。
+  // 同一ファイル名の鍵を持つ他のプロファイルにも自動で内容を伝播させる。
   const storeProfileKeys = useCallback((id: string, keys: KeyParams) => {
     setProfiles((prev) => {
-      const updated = prev.map((p) =>
-        p.id !== id ? p : {
-          ...p,
-          ...(keys.privateKeyContent !== undefined ? { privateKeyContent: keys.privateKeyContent, privateKeyName: keys.privateKeyName } : {}),
-          ...(keys.jumpPrivateKeyContent !== undefined ? { jumpPrivateKeyContent: keys.jumpPrivateKeyContent, jumpPrivateKeyName: keys.jumpPrivateKeyName } : {}),
+      const updated = prev.map((p) => {
+        if (p.id === id) {
+          return {
+            ...p,
+            ...(keys.privateKeyContent !== undefined ? { privateKeyContent: keys.privateKeyContent, privateKeyName: keys.privateKeyName } : {}),
+            ...(keys.jumpPrivateKeyContent !== undefined ? { jumpPrivateKeyContent: keys.jumpPrivateKeyContent, jumpPrivateKeyName: keys.jumpPrivateKeyName } : {}),
+          };
         }
-      );
+        // 他のプロファイル: 同じキーファイル名で内容が未保存なら自動伝播
+        let patch: Partial<Profile> = {};
+        if (
+          keys.privateKeyContent &&
+          keys.privateKeyName &&
+          p.privateKeyName === keys.privateKeyName &&
+          !p.privateKeyContent
+        ) {
+          patch = { ...patch, privateKeyContent: keys.privateKeyContent };
+        }
+        if (
+          keys.jumpPrivateKeyContent &&
+          keys.jumpPrivateKeyName &&
+          p.jumpPrivateKeyName === keys.jumpPrivateKeyName &&
+          !p.jumpPrivateKeyContent
+        ) {
+          patch = { ...patch, jumpPrivateKeyContent: keys.jumpPrivateKeyContent };
+        }
+        return Object.keys(patch).length > 0 ? { ...p, ...patch } : p;
+      });
       saveToStorage(updated);
       return updated;
     });
