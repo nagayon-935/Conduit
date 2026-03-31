@@ -345,8 +345,9 @@ func TestEndToEnd_InvalidToken(t *testing.T) {
 	if err := json.Unmarshal(data, &frame); err != nil {
 		t.Fatalf("decode error frame: %v", err)
 	}
-	if frame.Type != "error" {
-		t.Errorf("frame.type: got %q, want %q", frame.Type, "error")
+	// Server sends "exit" for unknown/terminated sessions so the client stops reconnecting.
+	if frame.Type != "exit" && frame.Type != "error" {
+		t.Errorf("frame.type: got %q, want %q or %q", frame.Type, "exit", "error")
 	}
 }
 

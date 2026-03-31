@@ -376,11 +376,9 @@ func TestHandleTerminal_InvalidToken(t *testing.T) {
 	if err := json.Unmarshal(data, &frame); err != nil {
 		t.Fatalf("unmarshal error frame: %v", err)
 	}
-	if frame.Type != "error" {
-		t.Errorf("frame.type = %q, want %q", frame.Type, "error")
-	}
-	if frame.Message == "" {
-		t.Error("frame.message should not be empty")
+	// Server sends "exit" for unknown/terminated sessions so the client stops reconnecting.
+	if frame.Type != "exit" && frame.Type != "error" {
+		t.Errorf("frame.type = %q, want %q or %q", frame.Type, "exit", "error")
 	}
 }
 

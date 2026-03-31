@@ -168,15 +168,20 @@ func (s *Session) RemoveWebSocket(connID string) {
 
 func (s *Session) BroadcastToWebSockets(msgType int, data []byte) {
 	s.mu.RLock()
-	conns := make([]*SafeConn, 0, len(s.wsConns))
-	for _, ws := range s.wsConns {
-		conns = append(conns, ws)
+	type entry struct {
+		id string
+		ws *SafeConn
+	}
+	conns := make([]entry, 0, len(s.wsConns))
+	for id, ws := range s.wsConns {
+		conns = append(conns, entry{id, ws})
 	}
 	s.mu.RUnlock()
 
-	for _, ws := range conns {
-		if err := ws.WriteMessage(msgType, data); err != nil {
-			slog.Debug("BroadcastToWebSockets: write error", "error", err)
+	for _, c := range conns {
+		if err := c.ws.WriteMessage(msgType, data); err != nil {
+			slog.Warn("BroadcastToWebSockets: write error, removing connection", "connID", c.id, "error", err)
+			s.RemoveWebSocket(c.id)
 		}
 	}
 }
