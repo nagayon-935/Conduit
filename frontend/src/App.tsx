@@ -5,7 +5,7 @@ import { SessionList } from './components/SessionList';
 import { LogPage } from './components/LogPage';
 import { TabBar } from './components/TabBar';
 import { NewConnectionOverlay } from './components/NewConnectionOverlay';
-import type { AppState, AuthType, LayoutType, LocalForward } from './types';
+import type { AppState, AuthType, LayoutType } from './types';
 import { saveSession, loadSession, clearSession } from './utils/session';
 import { useConnectionHistory } from './hooks/useConnectionHistory';
 import { useProfiles } from './hooks/useProfiles';
@@ -21,8 +21,6 @@ interface SessionTab {
   port: number;
   user: string;
   expiresAt: string;
-  localForwards?: LocalForward[];
-  forwardBaseUrl?: string;
 }
 
 export default function App() {
@@ -135,9 +133,9 @@ export default function App() {
 
   // ── Connect ─────────────────────────────────────────────────────────────
   const handleConnect = useCallback(
-    (token: string, expiresAt: string, host: string, port: number, user: string, authType: AuthType, localForwards?: LocalForward[], forwardBaseUrl?: string) => {
+    (token: string, expiresAt: string, host: string, port: number, user: string, authType: AuthType) => {
       const id = crypto.randomUUID();
-      const tab: SessionTab = { id, sessionToken: token, host, port, user, expiresAt, localForwards, forwardBaseUrl };
+      const tab: SessionTab = { id, sessionToken: token, host, port, user, expiresAt };
       setTabs((prev) => [...prev, tab]);
       setActiveTabId(id);
       saveSession({ token, expiresAt, host, port, user });
@@ -234,8 +232,6 @@ export default function App() {
         user={tab.user}
         expiresAt={tab.expiresAt}
         onDisconnect={() => handleCloseTab(tab.id)}
-        localForwards={tab.localForwards}
-        forwardBaseUrl={tab.forwardBaseUrl}
       />
     );
   }
@@ -298,8 +294,6 @@ export default function App() {
               user={tab.user}
               expiresAt={tab.expiresAt}
               onDisconnect={() => handleCloseTab(tab.id)}
-              localForwards={tab.localForwards}
-              forwardBaseUrl={tab.forwardBaseUrl}
             />
           </div>
         ))

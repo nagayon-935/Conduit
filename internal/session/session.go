@@ -4,21 +4,12 @@ import (
 	"context"
 	"io"
 	"log/slog"
-	"strings"
 	"sync"
 	"time"
 
 	"github.com/gorilla/websocket"
 	"golang.org/x/crypto/ssh"
 )
-
-// ForwardRule describes a single SSH local port forward.
-type ForwardRule struct {
-	LocalPort  int
-	RemoteHost string
-	RemotePort int
-	Scheme     string // "http" or "https"
-}
 
 const (
 	ToClientBufSize    = 256
@@ -51,8 +42,7 @@ type Session struct {
 	Port            int
 	User            string
 	CreatedAt       time.Time
-	ExpiresAt       time.Time
-	AllowedForwards []ForwardRule
+	ExpiresAt time.Time
 
 	SSHClient  *ssh.Client
 	SSHSession *ssh.Session
@@ -76,18 +66,17 @@ type Session struct {
 	mu sync.RWMutex
 }
 
-func NewSession(token, host string, port int, user string, client *ssh.Client, sshSess *ssh.Session, stdin io.WriteCloser, stdout io.Reader, gracePeriod time.Duration, allowedForwards []ForwardRule) *Session {
+func NewSession(token, host string, port int, user string, client *ssh.Client, sshSess *ssh.Session, stdin io.WriteCloser, stdout io.Reader, gracePeriod time.Duration) *Session {
 	now := time.Now()
 	ctx, cancel := context.WithCancel(context.Background())
 	return &Session{
-		Token:           token,
-		Host:            host,
-		Port:            port,
-		User:            user,
-		CreatedAt:       now,
-		ExpiresAt:       now.Add(gracePeriod),
-		AllowedForwards: allowedForwards,
-		SSHClient:       client,
+		Token:     token,
+		Host:      host,
+		Port:      port,
+		User:      user,
+		CreatedAt: now,
+		ExpiresAt: now.Add(gracePeriod),
+		SSHClient: client,
 		SSHSession:      sshSess,
 		Stdin:           stdin,
 		Stdout:          stdout,
@@ -101,29 +90,6 @@ func NewSession(token, host string, port int, user string, client *ssh.Client, s
 		wsConns:         make(map[string]*SafeConn),
 		wsNotify:        make(map[string]chan struct{}),
 	}
-}
-
-// IsForwardAllowed returns true if the given remote host and port are allowed
-// by the session's forward rules. Host matching is case-insensitive.
-func (s *Session) IsForwardAllowed(remoteHost string, remotePort int) bool {
-	_, ok := s.ForwardScheme(remoteHost, remotePort)
-	return ok
-}
-
-// ForwardScheme returns the URL scheme ("http" or "https") for the matching
-// forward rule, and true if such a rule exists.
-func (s *Session) ForwardScheme(remoteHost string, remotePort int) (string, bool) {
-	lowerHost := strings.ToLower(remoteHost)
-	for _, rule := range s.AllowedForwards {
-		if strings.ToLower(rule.RemoteHost) == lowerHost && rule.RemotePort == remotePort {
-			scheme := rule.Scheme
-			if scheme == "" {
-				scheme = "http"
-			}
-			return scheme, true
-		}
-	}
-	return "", false
 }
 
 func (s *Session) Close() {

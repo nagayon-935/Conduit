@@ -2,7 +2,6 @@ import { useEffect, useCallback, useRef, useState } from 'react';
 import { useTerminal } from '../hooks/useTerminal';
 import { useWebSocket } from '../hooks/useWebSocket';
 import { themes } from '../themes';
-import type { LocalForward } from '../types';
 import '@xterm/xterm/css/xterm.css';
 import './Terminal.css';
 
@@ -13,8 +12,6 @@ interface TerminalProps {
   user: string;
   expiresAt: string;
   onDisconnect: () => void;
-  localForwards?: LocalForward[];
-  forwardBaseUrl?: string;
 }
 
 function formatReconnectDeadline(expiresAt: string): string {
@@ -26,7 +23,7 @@ function formatReconnectDeadline(expiresAt: string): string {
   }
 }
 
-export function Terminal({ sessionToken, host, port, user, expiresAt, onDisconnect, localForwards, forwardBaseUrl }: TerminalProps) {
+export function Terminal({ sessionToken, host, port, user, expiresAt, onDisconnect }: TerminalProps) {
   const {
     terminalRef,
     terminal,
@@ -178,29 +175,6 @@ export function Terminal({ sessionToken, host, port, user, expiresAt, onDisconne
                   Reconnect by: {formatReconnectDeadline(expiresAt)}
                 </span>
               </>
-            )}
-            {forwardBaseUrl && localForwards && localForwards.length > 0 && (
-              <span className="status-forwards">
-                {localForwards.map((lf) => {
-                  const label = `${lf.remoteHost}:${lf.remotePort}`;
-                  return (
-                    <button
-                      key={`${lf.remoteHost}:${lf.remotePort}`}
-                      type="button"
-                      className={`forward-link${isConnected ? '' : ' forward-link--disconnected'}`}
-                      title={isConnected ? `Open ${label} via SSH tunnel` : 'Session disconnected'}
-                      disabled={!isConnected}
-                      onClick={() => {
-                        if (!isConnected) return;
-                        document.cookie = `conduit_forward_token=${sessionToken}; path=/api/forward/; SameSite=Strict`;
-                        window.open(`/api/forward/${lf.remoteHost}/${lf.remotePort}/`, '_blank');
-                      }}
-                    >
-                      [{label}]
-                    </button>
-                  );
-                })}
-              </span>
             )}
           </div>
         </div>

@@ -1,11 +1,11 @@
 import { useState, useEffect, useRef, type FormEvent } from 'react';
 import { connectToHost } from '../api/connect';
-import type { HistoryEntry, Profile, AuthType, LocalForward } from '../types';
+import type { HistoryEntry, Profile, AuthType } from '../types';
 import { type FormFields, defaultFields, validateForm, buildConnectRequest, matchProfile } from '../utils/form';
 import './NewConnectionOverlay.css';
 
 interface NewConnectionOverlayProps {
-  onConnect: (token: string, expiresAt: string, host: string, port: number, user: string, authType: AuthType, localForwards?: LocalForward[], forwardBaseUrl?: string) => void;
+  onConnect: (token: string, expiresAt: string, host: string, port: number, user: string, authType: AuthType) => void;
   onClose: () => void;
   history?: HistoryEntry[];
   profiles?: Profile[];
@@ -20,7 +20,6 @@ export function NewConnectionOverlay({
   const [fields, setFields] = useState<FormFields>(defaultFields);
   const [error, setError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
-  const [loadedLocalForwards, setLoadedLocalForwards] = useState<LocalForward[] | undefined>(undefined);
   const keyFileRef = useRef<HTMLInputElement>(null);
   const jumpKeyFileRef = useRef<HTMLInputElement>(null);
   // Close on Escape key
@@ -86,9 +85,9 @@ export function NewConnectionOverlay({
     const port = parseInt(fields.port, 10);
     setIsLoading(true);
     try {
-      const connectReq = buildConnectRequest(fields, loadedLocalForwards);
+      const connectReq = buildConnectRequest(fields);
       const response = await connectToHost(connectReq);
-      onConnect(response.session_token, response.expires_at, fields.host.trim(), port, fields.user.trim(), fields.authType, loadedLocalForwards, response.forward_base_url);
+      onConnect(response.session_token, response.expires_at, fields.host.trim(), port, fields.user.trim(), fields.authType);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'An unexpected error occurred.');
       setIsLoading(false);
@@ -113,7 +112,6 @@ export function NewConnectionOverlay({
       jumpAuthType: profile.jumpAuthType ?? 'vault',
       jumpPassword: '', jumpPrivateKey: profile.jumpPrivateKeyContent ?? '', jumpPrivateKeyName: profile.jumpPrivateKeyName ?? '',
     });
-    setLoadedLocalForwards(profile.localForwards);
     if (error) setError(null);
   }
 

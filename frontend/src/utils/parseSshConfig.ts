@@ -10,8 +10,6 @@ export interface SshConfigHost {
   jumpPort?: number;
   jumpUser?: string;
   jumpIdentityFile?: string;
-  // LocalForward entries
-  localForwards?: { localPort: number; remoteHost: string; remotePort: number; scheme: string }[];
 }
 
 /** 1 ブロック分の生設定 */
@@ -83,44 +81,11 @@ export function parseSshConfig(text: string): SshConfigHost[] {
     let jumpPort: number | undefined;
     let jumpUser: string | undefined;
     let jumpIdentityFile: string | undefined;
-    const localForwards: { localPort: number; remoteHost: string; remotePort: number; scheme: string }[] = [];
 
     for (const line of lines.slice(1)) {
       const m = line.match(/^\s*(\w+)\s+(.+)$/);
       if (!m) continue;
       const [, key, val] = m;
-
-      // Parse LocalForward directives.
-      // Format: [bind_address:]port host:hostport
-      if (key.toLowerCase() === 'localforward') {
-        const parts = val.trim().split(/\s+/);
-        if (parts.length >= 2) {
-          // First part may be [bind_address:]port — take the last ':'-split token
-          const localPart = parts[0];
-          const localPort = parseInt(localPart.includes(':') ? localPart.split(':').pop()! : localPart, 10);
-          // Second part is host:hostport
-          const remotePart = parts[1];
-          const lastColon = remotePart.lastIndexOf(':');
-          if (!isNaN(localPort) && lastColon !== -1) {
-            let remoteHost = remotePart.slice(0, lastColon);
-            const remotePort = parseInt(remotePart.slice(lastColon + 1), 10);
-            if (remoteHost && !isNaN(remotePort)) {
-              // Detect HTTPS: explicit https:// prefix or well-known port 443.
-              let scheme = 'http';
-              if (remoteHost.startsWith('https://')) {
-                scheme = 'https';
-                remoteHost = remoteHost.slice('https://'.length);
-              } else if (remoteHost.startsWith('http://')) {
-                remoteHost = remoteHost.slice('http://'.length);
-              } else if (remotePort === 443) {
-                scheme = 'https';
-              }
-              localForwards.push({ localPort, remoteHost, remotePort, scheme });
-            }
-          }
-        }
-        continue;
-      }
 
       if (key.toLowerCase() !== 'proxyjump') continue;
 
@@ -161,8 +126,6 @@ export function parseSshConfig(text: string): SshConfigHost[] {
       jumpHost = jh;
       jumpPort = jp;
       jumpUser = ju;
-      // ProxyJump は最初の1つだけ使う。ただし break すると後続の LocalForward が
-      // 読まれなくなるため、フラグで重複処理を防ぎつつループを継続する。
     }
 
     results.push({
@@ -172,7 +135,6 @@ export function parseSshConfig(text: string): SshConfigHost[] {
       user: raw.user,
       ...(raw.identityFile ? { identityFile: raw.identityFile } : {}),
       ...(jumpHost ? { jumpHost, jumpPort, jumpUser, ...(jumpIdentityFile ? { jumpIdentityFile } : {}) } : {}),
-      ...(localForwards.length > 0 ? { localForwards } : {}),
     });
   }
 

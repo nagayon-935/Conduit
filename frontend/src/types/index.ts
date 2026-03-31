@@ -14,22 +14,12 @@ export interface ConnectRequest {
   jump_auth_type?: AuthType;
   jump_password?: string;
   jump_private_key?: string;
-  // Local port forwards
-  local_forwards?: Array<{ local_port: number; remote_host: string; remote_port: number; scheme?: string }>;
-}
-
-export interface LocalForward {
-  localPort: number;
-  remoteHost: string;
-  remotePort: number;
-  scheme?: string; // "http" or "https"; defaults to "http"
 }
 
 export interface ConnectResponse {
   session_token: string;
   expires_at: string;
   message: string;
-  forward_base_url?: string;
 }
 
 export interface ApiError {
@@ -70,7 +60,6 @@ export interface Profile {
   jumpAuthType?: AuthType;
   jumpPrivateKeyContent?: string;
   jumpPrivateKeyName?: string;
-  localForwards?: LocalForward[];
 }
 
 export interface HistoryEntry {
