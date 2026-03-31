@@ -209,7 +209,7 @@ func (h *Handler) handleConnect(w http.ResponseWriter, r *http.Request) {
 
 	var forwardBaseURL string
 	if len(req.LocalForwards) > 0 {
-		forwardBaseURL = "/api/forward/" + token
+		forwardBaseURL = "/api/forward"
 	}
 
 	writeJSON(w, http.StatusCreated, ConnectResponse{

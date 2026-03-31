@@ -12,23 +12,31 @@ import (
 )
 
 // handleForward proxies HTTP or WebSocket traffic over an SSH tunnel.
-// URL pattern: /api/forward/{token}/{remote_host}/{remote_port}[/{path...}]
+// URL pattern: /api/forward/{remote_host}/{remote_port}[/{path...}]
+// The session token is read from the "conduit_forward_token" cookie.
 func (h *Handler) handleForward(w http.ResponseWriter, r *http.Request) {
+	// Read session token from cookie.
+	cookie, err := r.Cookie("conduit_forward_token")
+	if err != nil {
+		http.Error(w, "missing conduit_forward_token cookie", http.StatusUnauthorized)
+		return
+	}
+	token := cookie.Value
+
 	// Extract path segments after /api/forward/
-	// Pattern: /api/forward/<token>/<host>/<port>[/<path...>]
+	// Pattern: /api/forward/<host>/<port>[/<path...>]
 	trimmed := strings.TrimPrefix(r.URL.Path, "/api/forward/")
-	parts := strings.SplitN(trimmed, "/", 4)
-	if len(parts) < 3 {
+	parts := strings.SplitN(trimmed, "/", 3)
+	if len(parts) < 2 {
 		http.Error(w, "invalid forward path", http.StatusBadRequest)
 		return
 	}
 
-	token := parts[0]
-	remoteHost := parts[1]
-	remotePortStr := parts[2]
+	remoteHost := parts[0]
+	remotePortStr := parts[1]
 	var remainingPath string
-	if len(parts) == 4 {
-		remainingPath = "/" + parts[3]
+	if len(parts) == 3 {
+		remainingPath = "/" + parts[2]
 	} else {
 		remainingPath = "/"
 	}
@@ -121,7 +129,7 @@ func (h *Handler) handleForward(w http.ResponseWriter, r *http.Request) {
 			if parseErr != nil {
 				return nil
 			}
-			base := "/api/forward/" + token + "/" + remoteHost + "/" + remotePortStr
+			base := "/api/forward/" + remoteHost + "/" + remotePortStr
 			resp.Header.Set("Location", base+parsed.URL.Path)
 			return nil
 		},

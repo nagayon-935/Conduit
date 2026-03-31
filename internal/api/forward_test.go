@@ -13,7 +13,8 @@ func TestHandleForward_NotFound(t *testing.T) {
 	t.Parallel()
 
 	handler := newTestHandler(mockVaultOK(), mockDialerOK())
-	req := httptest.NewRequest(http.MethodGet, "/api/forward/nonexistent-token/host.local/3000", nil)
+	req := httptest.NewRequest(http.MethodGet, "/api/forward/host.local/3000", nil)
+	req.AddCookie(&http.Cookie{Name: "conduit_forward_token", Value: "nonexistent-token"})
 	w := httptest.NewRecorder()
 	handler.ServeHTTP(w, req)
 
@@ -46,7 +47,8 @@ func TestHandleForward_Forbidden(t *testing.T) {
 	token := body["session_token"].(string)
 
 	// Try to forward to a disallowed host/port.
-	req := httptest.NewRequest(http.MethodGet, "/api/forward/"+token+"/evil.host/9999", nil)
+	req := httptest.NewRequest(http.MethodGet, "/api/forward/evil.host/9999", nil)
+	req.AddCookie(&http.Cookie{Name: "conduit_forward_token", Value: token})
 	w2 := httptest.NewRecorder()
 	handler.ServeHTTP(w2, req)
 
@@ -79,7 +81,8 @@ func TestHandleForward_NoSSHClient(t *testing.T) {
 	token := body["session_token"].(string)
 
 	// Try to forward to an allowed host/port but SSHClient is nil.
-	req := httptest.NewRequest(http.MethodGet, "/api/forward/"+token+"/grafana.mgmt/3000", nil)
+	req := httptest.NewRequest(http.MethodGet, "/api/forward/grafana.mgmt/3000", nil)
+	req.AddCookie(&http.Cookie{Name: "conduit_forward_token", Value: token})
 	w2 := httptest.NewRecorder()
 	handler.ServeHTTP(w2, req)
 
@@ -114,8 +117,7 @@ func TestHandleConnect_LocalForwards_ResponseContainsForwardBaseURL(t *testing.T
 		t.Fatalf("forward_base_url missing or empty: %v", body)
 	}
 
-	token, _ := body["session_token"].(string)
-	expected := "/api/forward/" + token
+	expected := "/api/forward"
 	if forwardBaseURL != expected {
 		t.Errorf("forward_base_url = %q, want %q", forwardBaseURL, expected)
 	}

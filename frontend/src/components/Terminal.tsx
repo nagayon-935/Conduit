@@ -182,20 +182,22 @@ export function Terminal({ sessionToken, host, port, user, expiresAt, onDisconne
             {forwardBaseUrl && localForwards && localForwards.length > 0 && (
               <span className="status-forwards">
                 {localForwards.map((lf) => {
-                  const url = `${forwardBaseUrl}/${lf.remoteHost}/${lf.remotePort}/`;
                   const label = `${lf.remoteHost}:${lf.remotePort}`;
                   return (
-                    <a
+                    <button
                       key={`${lf.remoteHost}:${lf.remotePort}`}
-                      href={isConnected ? url : undefined}
-                      target="_blank"
-                      rel="noopener noreferrer"
+                      type="button"
                       className={`forward-link${isConnected ? '' : ' forward-link--disconnected'}`}
                       title={isConnected ? `Open ${label} via SSH tunnel` : 'Session disconnected'}
-                      onClick={isConnected ? undefined : (e) => e.preventDefault()}
+                      disabled={!isConnected}
+                      onClick={() => {
+                        if (!isConnected) return;
+                        document.cookie = `conduit_forward_token=${sessionToken}; path=/api/forward/; SameSite=Strict`;
+                        window.open(`/api/forward/${lf.remoteHost}/${lf.remotePort}/`, '_blank');
+                      }}
                     >
                       [{label}]
-                    </a>
+                    </button>
                   );
                 })}
               </span>

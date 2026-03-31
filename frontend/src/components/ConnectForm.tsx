@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect, type FormEvent } from 'react';
 import { connectToHost } from '../api/connect';
-import type { AppState, AuthType, HistoryEntry } from '../types';
+import type { AppState, AuthType, HistoryEntry, LocalForward } from '../types';
 import { useProfiles } from '../hooks/useProfiles';
 import { parseSshConfig } from '../utils/parseSshConfig';
 import { type FormFields, defaultFields, validateForm, buildConnectRequest, matchProfile } from '../utils/form';
@@ -8,7 +8,7 @@ import './ConnectForm.css';
 
 interface ConnectFormProps {
   appState: AppState;
-  onConnect: (sessionToken: string, expiresAt: string, host: string, port: number, user: string, authType: AuthType) => void;
+  onConnect: (sessionToken: string, expiresAt: string, host: string, port: number, user: string, authType: AuthType, localForwards?: LocalForward[], forwardBaseUrl?: string) => void;
   onStateChange: (state: AppState) => void;
   history?: HistoryEntry[];
   onShowSessions?: () => void;
@@ -323,14 +323,18 @@ export function ConnectForm({
 
     onStateChange('connecting');
 
+    // Resolve localForwards from loaded profile (main entry only)
+    const loadedProfile = loadedProfileId ? profiles.find((p) => p.id === loadedProfileId) : undefined;
+    const profileLocalForwards = loadedProfile?.localForwards;
+
     if (allEntries.length === 1) {
       // Single host: original behaviour
       const entry = allEntries[0];
       const port = parseInt(entry.port, 10);
       try {
-        const connectReq = buildConnectRequest(entry);
+        const connectReq = buildConnectRequest(entry, profileLocalForwards);
         const response = await connectToHost(connectReq);
-        onConnect(response.session_token, response.expires_at, entry.host.trim(), port, entry.user.trim(), entry.authType);
+        onConnect(response.session_token, response.expires_at, entry.host.trim(), port, entry.user.trim(), entry.authType, profileLocalForwards, response.forward_base_url);
       } catch (err) {
         setError(err instanceof Error ? err.message : 'An unexpected error occurred.');
         onStateChange('idle');
@@ -340,13 +344,14 @@ export function ConnectForm({
 
     // Multiple hosts: connect in parallel
     const results = await Promise.allSettled(
-      allEntries.map((entry) => connectToHost(buildConnectRequest(entry)))
+      allEntries.map((entry, i) => connectToHost(buildConnectRequest(entry, i === 0 ? profileLocalForwards : undefined)))
     );
 
     results.forEach((result, i) => {
       if (result.status === 'fulfilled') {
         const entry = allEntries[i];
-        onConnect(result.value.session_token, result.value.expires_at, entry.host.trim(), parseInt(entry.port, 10), entry.user.trim(), entry.authType);
+        const fwds = i === 0 ? profileLocalForwards : undefined;
+        onConnect(result.value.session_token, result.value.expires_at, entry.host.trim(), parseInt(entry.port, 10), entry.user.trim(), entry.authType, fwds, result.value.forward_base_url);
       }
     });
 
